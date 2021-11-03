@@ -18,6 +18,7 @@ loader = data_loader.DataLoader(stop_times_file=stop_times_fname,
 time_start = time.perf_counter()
 loader.load_stops()
 loader.load_stop_times()
+loader.sort_hash_table()
 loader.computeSpeed()
 time_end = time.perf_counter()
 print(f"Time to load the data {time_end - time_start:0.4f} seconds")

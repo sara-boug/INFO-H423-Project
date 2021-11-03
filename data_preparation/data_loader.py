@@ -5,7 +5,7 @@ import os
 import time
 import json
 from datetime import datetime, timedelta
-
+import numpy as np
 
 class DataLoader:
     stop_times_fname = ""  # stop times file name
@@ -81,6 +81,13 @@ class DataLoader:
         except Exception:
             logging.log(traceback.format_exc())
 
+    def sort_hash_table(self):
+        for key1 in self.stop_times:
+            for key2 in self.stop_times[key1]:
+                layer2 = self.stop_times[key1][key2]
+                layer2["info"].sort(key=lambda x: x["departure_time"])
+                self.stop_times[key1][key2]["info"] = layer2["info"]
+
     def computeSpeed(self):
         current_file = os.path.join(self.vehicle_position_folder, self.vehicle_position_files[2])
         with open(current_file) as file:
@@ -89,53 +96,56 @@ class DataLoader:
                 epoch_time = int(data["time"][:10])
                 data_retrieval_time = time.strftime('%H:%M:%S', time.localtime(epoch_time))
                 for response in data["Responses"]:
-                    for line in response["lines"]:
-                        line_id = line["lineId"]
-                        for position in line["vehiclePositions"]:
-                            self.__findCorrectRowData(position["directionId"],
-                                                      position["pointId"],
-                                                      data_retrieval_time)
-                            return
+                    try:
+                        for line in response["lines"]:
+                            line_id = line["lineId"]
+                            for position in line["vehiclePositions"]:
+                                self.__findCorrectRowData(position["directionId"],
+                                                          position["pointId"],
+                                                          data_retrieval_time)
+                    except TypeError:
+                        continue
 
     def __findCorrectRowData(self, direction_id, point_id, data_retrieval_time):
-        first_digits = direction_id[:2]
-        # accessing the elements  in the second layer of the stops time
-        direction = self.stop_times[first_digits][direction_id]
-        # for the direction id we need to find the nearest time after the data retrieval
-        direction_info = direction["info"]
-        new_min = None
-        needed_info = self.__findMinDate(direction_info, data_retrieval_time)
-        first_digits = point_id[:2]
-        point = self.stop_times[first_digits][point_id]  # accessing the elements  in the second layer of the stops time
-        point_info = point["info"]
-        needed_info = self.__findMinDate(point_info, data_retrieval_time)
-        print(needed_info)
+        try:
+            first_digits = direction_id[:2]
+            # accessing the elements  in the second layer of the stops time
+            direction = self.stop_times[first_digits][direction_id]
+            # for the direction id we need to find the nearest time after the data retrieval
+            direction_info = direction["info"]
+            needed_info = self.__findMinDate(direction_info, data_retrieval_time, False)
+            # print(data_retrieval_time)
+            # print(needed_info)
+            first_digits = point_id[:2]
+            point = self.stop_times[first_digits][
+                point_id]  # accessing the elements  in the second layer of the stops time
+            point_info = point["info"]
+            needed_info = self.__findMinDate(point_info, data_retrieval_time, True)
+            # print(needed_info)
+        except KeyError:  # when a stop Id doesn't exist is simply omitted
+            return
 
-        # Now the stop we are interested in is the stop that occurred after the retrieval time
+            # Now the stop we are interested in is the stop that occurred after the retrieval time
 
-    def __findMinDate(self, stop_info, data_retrieval_time):
-        new_min = None
+    def __findMinDate(self, stop_info, data_retrieval_time, reverse):
+        if reverse:
+            stop_info.reverse()
+        retrieval_time = datetime.strptime(str(data_retrieval_time).strip(), '%H:%M:%S')
+        ret_time = retrieval_time.time()
         needed_info = None
-        threshold = datetime.strptime(str('00:00:00').strip(), '%H:%M:%S') - datetime.strptime(str('00:00:00').strip(),
-                                                                                               '%H:%M:%S')
         for info in stop_info:
-            print(info)
             try:
-                min_ = new_min
-                departure_time = datetime.strptime(str(info["departure_time"]).strip(), '%H:%M:%S')
-                retrieval_time = datetime.strptime(str(data_retrieval_time).strip(), '%H:%M:%S')
-                new_min = retrieval_time - departure_time
-                print(new_min)
-                dep_time = time.strptime(str(info["departure_time"]).strip(), '%H:%M:%S')
-                range_time = dep_time + datatimedelta(hours=1, minutes=30)
-                ret_time = time.strptime(str(data_retrieval_time).strip(), '%H:%M:%S')
-
-                if min_ is not None and range_time > dep_time > ret_time:
-                    if min_ < new_min:
-                        new_min = min_
+                departure_arrival_time = datetime.strptime(info["departure_time"], '%H:%M:%S')
+                dep_ret_time = departure_arrival_time.time()
+                if reverse is False:
+                    if dep_ret_time > ret_time:
                         needed_info = info
-                        continue
+                        break
+                else:
+                    if dep_ret_time < ret_time:
+                        needed_info = info
+                        break
+
             except ValueError:
                 continue
-        print(needed_info)
         return needed_info
