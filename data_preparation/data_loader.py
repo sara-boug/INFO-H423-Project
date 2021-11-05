@@ -3,9 +3,10 @@ import logging
 import traceback
 import os
 import time
+from datetime import datetime
+import ijson
+import pandas as pd
 import json
-from datetime import datetime, timedelta
-import numpy as np
 
 class DataLoader:
     stop_times_fname = ""  # stop times file name
@@ -82,49 +83,49 @@ class DataLoader:
             logging.log(traceback.format_exc())
 
     def sort_hash_table(self):
+        data_retrieval_time = time.strftime('%H:%M:%S', time.localtime(1631615671))
         for key1 in self.stop_times:
             for key2 in self.stop_times[key1]:
                 layer2 = self.stop_times[key1][key2]
                 layer2["info"].sort(key=lambda x: x["departure_time"])
-                self.stop_times[key1][key2]["info"] = layer2["info"]
+                departure = self.__findMinDate(layer2["info"], data_retrieval_time, reverse=False)
+                arrival = self.__findMinDate(layer2["info"], data_retrieval_time, reverse=True)
+                self.stop_times[key1][key2]["departure"] = departure
+                self.stop_times[key1][key2]["arrival"] = arrival
+                self.stop_times[key1][key2]["info"] = []
 
     def computeSpeed(self):
         current_file = os.path.join(self.vehicle_position_folder, self.vehicle_position_files[2])
-        with open(current_file) as file:
-            json_reader = json.load(file)
-            for data in json_reader["data"]:
-                epoch_time = int(data["time"][:10])
-                data_retrieval_time = time.strftime('%H:%M:%S', time.localtime(epoch_time))
+        json_file = pd.read_json(current_file, lines=True)
+        dataframe = pd.DataFrame(json.loads(line) for line in json_file)
+        for row , index in dataframe.iterrows():
+            print(row)
+            return
+            for data in ijson.items(json_file, 'item'):
                 for response in data["Responses"]:
-                    try:
-                        for line in response["lines"]:
-                            line_id = line["lineId"]
-                            for position in line["vehiclePositions"]:
-                                self.__findCorrectRowData(position["directionId"],
-                                                          position["pointId"],
-                                                          data_retrieval_time)
-                    except TypeError:
-                        continue
+                    for line in response["lines"]:
+                        line_id = line["lineId"]
+                        print("hello")
+                        for position in line["vehiclePositions"]:
+                            """self.__findCorrectRowData(position["directionId"],
+                                                      position["pointId"],
+                                                      )"""
 
-    def __findCorrectRowData(self, direction_id, point_id, data_retrieval_time):
+                    continue
+
+    def __findCorrectRowData(self, direction_id, point_id):
         try:
             first_digits = direction_id[:2]
             # accessing the elements  in the second layer of the stops time
-            direction = self.stop_times[first_digits][direction_id]
+            arrival = self.stop_times[first_digits][direction_id]['arrival']
+            # print(arrival)
             # for the direction id we need to find the nearest time after the data retrieval
-            direction_info = direction["info"]
-            needed_info = self.__findMinDate(direction_info, data_retrieval_time, False)
-            # print(data_retrieval_time)
-            # print(needed_info)
             first_digits = point_id[:2]
-            point = self.stop_times[first_digits][
-                point_id]  # accessing the elements  in the second layer of the stops time
-            point_info = point["info"]
-            needed_info = self.__findMinDate(point_info, data_retrieval_time, True)
-            # print(needed_info)
+            # accessing the elements  in the second layer of the stops time
+            departure = self.stop_times[first_digits][point_id]['departure']
+            # print(departure)
         except KeyError:  # when a stop Id doesn't exist is simply omitted
             return
-
             # Now the stop we are interested in is the stop that occurred after the retrieval time
 
     def __findMinDate(self, stop_info, data_retrieval_time, reverse):
