@@ -7,6 +7,8 @@ from datetime import datetime
 import ijson
 import pandas as pd
 import json
+import ijson
+
 
 class DataLoader:
     stop_times_fname = ""  # stop times file name
@@ -95,21 +97,20 @@ class DataLoader:
                 self.stop_times[key1][key2]["info"] = []
 
     def computeSpeed(self):
-        current_file = os.path.join(self.vehicle_position_folder, self.vehicle_position_files[2])
-        json_file = pd.read_json(current_file, lines=True)
-        dataframe = pd.DataFrame(json.loads(line) for line in json_file)
-        for row , index in dataframe.iterrows():
-            print(row)
-            return
-            for data in ijson.items(json_file, 'item'):
+        current_file = os.path.join(self.vehicle_position_folder, self.vehicle_position_files[0])
+        with open(current_file) as file:
+            objects = ijson.items(file, 'data.item')
+            for data in objects:
                 for response in data["Responses"]:
-                    for line in response["lines"]:
-                        line_id = line["lineId"]
-                        print("hello")
-                        for position in line["vehiclePositions"]:
-                            """self.__findCorrectRowData(position["directionId"],
-                                                      position["pointId"],
-                                                      )"""
+                    try:
+                        for line in response["lines"]:
+                            line_id = line["lineId"]
+                            for position in line["vehiclePositions"]:
+                                self.__findCorrectRowData(position["directionId"],
+                                                          position["pointId"],
+                                                          )
+                    except TypeError:
+                        continue
 
                     continue
 
