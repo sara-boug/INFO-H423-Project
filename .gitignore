@@ -1,3 +1,4 @@
 /Data/*
 **/__pycache__/
 .idea
+/generated_file
