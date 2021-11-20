@@ -60,6 +60,7 @@ def select_vehicle(p_id, dist, d_id):
 
 
 ########################################################
+# main function
 
 if __name__ == "__main__":
     file_name = 'Data/vehiclePosition01.json'
