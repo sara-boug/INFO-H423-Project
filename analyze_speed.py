@@ -51,7 +51,12 @@ def extract_only_same_pointId(positions_list):
 with open("./splited_json/splited_json/vehiclePosition13.json", "r") as read_file:
     data = json.load(read_file)
 
-testlist = data['data'][0:100]
+
+testlist = data['data'][0:50]
+f = open("./splited_json/splited_json/demofile2.txt", "a")
+f.write(str(testlist))
+f.close()
+
 li_time = list(map(map_time, testlist))
 
 def map_lineIDs(lines):
@@ -66,7 +71,7 @@ for idx, call in enumerate(testlist) :
     time_call = call['time']
     api_lines_responses = [item  for resp in call['Responses']  for item in resp['lines']]
     for line in api_lines_responses:
-         # get vehicle position list for each line
+        # get vehicle position list for each line
         
         if idx == 0 :
             speed_first_distance = [pos['distanceFromPoint']/30 for pos in line['vehiclePositions']] 
@@ -89,7 +94,7 @@ for idx, call in enumerate(testlist) :
                     if idx == 0 :
                         li['SpeedLineId'].append(0.0)## get the reel stat mean after!!
                     elif  speed_stop_list :
-                        li['SpeedLineId'].append(statistics.mean(speed_stop_list))
+                        li['SpeedLineId'].append(statistics.median(speed_stop_list))
                     else :
                         li['SpeedLineId'].append(0.0)
                     break
