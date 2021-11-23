@@ -2,7 +2,6 @@ import json
 import time
 from datetime import datetime, timedelta
 import numpy as np
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import statistics
@@ -18,45 +17,35 @@ import statistics
 # read json file
 
 
-def oneway_direction(positions_list, directionId):
-    res = []
-    for obj in positions_list:
-        li = [ i for i in obj if i['directionId'] == directionId]
-        res.append(li)
-    return res
-
-def get_pointId(vehiclePosition):
-    return vehiclePosition['pointId']
-
 def map_time(dataset):
     return dataset['time']
 
 
-def map_responses(dataset):
-    return dataset['Responses']
-
 def map_lines(responses):
     return responses['lines']
 
+"""
 def extract_only_same_pointId(positions_list):
     res = []
     for obj in positions_list:
         for i in obj:
-            if i['pointId'] in list(map(get_pointId , [item for sublist in positions_list for item in sublist])):
+            if i['pointId'] in list(map(get_pointId , [item for sublist
+             in positions_list for item in sublist])):
                 res.append(i)
 
     return res
-
+"""
 # getting 2 timestamp (2 calls)
 with open("./splited_json/splited_json/vehiclePosition13.json", "r") as read_file:
     data = json.load(read_file)
 
 
-testlist = data['data'][0:50]
+testlist = data['data'][0:80]
+"""
 f = open("./splited_json/splited_json/demofile2.txt", "a")
 f.write(str(testlist))
 f.close()
-
+"""
 li_time = list(map(map_time, testlist))
 
 def map_lineIDs(lines):
@@ -66,58 +55,53 @@ def map_lines(responses):
 
     return list(map(map_lineIDs, li)) 
 
-speed_list = map_lines(testlist[0]['Responses'])    
-for idx, call in enumerate(testlist) :
-    time_call = call['time']
-    api_lines_responses = [item  for resp in call['Responses']  for item in resp['lines']]
+speed_list = map_lines(testlist[0]['Responses']) # Prepare a list of lineID with it list of speed over timestamps calls    
+for idx, call in enumerate(testlist): # loop in all timestamp responses
+    time_call = call['time']# get the timestamp
+    api_lines_responses = [item for resp in
+     call['Responses'] if resp is not None for item in resp['lines']]
+      #Since the API calls is recorded sequentualy, map all lineIDs within all lines responses in one list with skipping None responses
     for line in api_lines_responses:
         # get vehicle position list for each line
         
-        if idx == 0 :
-            speed_first_distance = [pos['distanceFromPoint']/30 for pos in line['vehiclePositions']] 
-
-        else:
-            last_time_call = testlist[idx-1]['time']
-            speed_stop_list = []
-            for vehicle_position in line['vehiclePositions']:
-                map_last_distance = [pos for resp in testlist[idx-1]['Responses'] for item in resp['lines'] for pos in item['vehiclePositions']] 
-                for di in map_last_distance:
+        if idx == 0 : # case when we are in the first timestamp, compute the speed = distanceFromPointID/ 30 secondes
+            speed_first_api_call = [pos['distanceFromPoint']/30 for pos in
+             line['vehiclePositions']] 
+            #print(">>>>>>>>>>>>>\n" , speed_first_distance)
+        else: # general cases when we are in Timestamp Ti
+            last_time_call = testlist[idx-1]['time'] # get the last timestamp
+            speed_stop_list = [] #at the end of the loop, this list contain all speed in all stop station
+            for vehicle_position in line['vehiclePositions']: # loop on all vehicle position per lineID
+                map_last_distance = [pos for resp in testlist[idx-1]['Responses']
+                 if resp is not None for item in resp['lines'] for pos in
+                  item['vehiclePositions']] # this map the last timestamp distances for all pointID 
+                for di in map_last_distance: # loop on all last distance in order to compare direction, pointID, and distance i should be >distance i-1
                     if vehicle_position['directionId'] == di['directionId'] and vehicle_position['pointId'] == di['pointId'] and vehicle_position['distanceFromPoint'] >= di['distanceFromPoint']:  
-                        # this is the best data check
-                        speed = (vehicle_position['distanceFromPoint'] - di['distanceFromPoint']) /(int(time_call) - int(last_time_call)) 
-                        speed_stop_list.append(speed)
+                        # thischeck get the most relevant data to compute speed
+                        speed = (vehicle_position['distanceFromPoint'] -
+                         di['distanceFromPoint'])/(int(time_call) - int(last_time_call)) 
+                        speed_stop_list.append(speed) # add new stop speed
                         break
     
 
-        for li in speed_list:
+        for li in speed_list:# loop in the prepared list of speed per line and update it with new speed
                 if li['lineId'] == line['lineId']:
                     if idx == 0 :
-                        li['SpeedLineId'].append(0.0)## get the reel stat mean after!!
-                    elif  speed_stop_list :
+                        li['SpeedLineId'].append(statistics.median(speed_first_api_call))## get the reel stat mean after!!
+                    elif  speed_stop_list:
                         li['SpeedLineId'].append(statistics.median(speed_stop_list))
-                    else :
-                        li['SpeedLineId'].append(0.0)
                     break
                     #speed_per_line.append(statistics.mean(speed_per_line))
-print(">>>>>>>>this is the final \n",speed_list)
+#print(">>>>>>>>this is the final \n", speed_list)
             
     # case when we are in the first tipe point >>> idx = 0
     
-"""
-
- for line in lines:
-    if pointId in map list before 
-        then >>>  speed = di - di-1/ ti-ti-1
-    else : speed = 0        
-"""
 
 
 
-"""
+
 # Ploting
 
-speed= range(7,10)
-print(t0,t1,t2)
-plt.plot(times,speed)
+
+plt.plot(li_time,speed_list[0]['SpeedLineId'])
 plt.show()
-"""
