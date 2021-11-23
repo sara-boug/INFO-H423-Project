@@ -109,7 +109,6 @@ class DataLoader:
             return math.nan
 
     def set_point_line_id(self):
-
         current_file = os.path.join(self.vehicle_position_folder, self.vehicle_position_files[0])
         with open(current_file) as file:
             objects = ijson.items(file, 'data.item')

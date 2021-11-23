@@ -1,7 +1,6 @@
 from data_preparation import data_loader3
 import os
 import time
-from datetime import datetime
 
 separator = os.sep
 data_direc = os.path.join(os.getcwd(), "Data", "gtfs23Sept")
@@ -15,8 +14,9 @@ loader = data_loader3.DataLoader(stop_times_file=stop_times_fname,
 
 # measuring the loading time
 time_start = time.perf_counter()
-#loader.simply_shape()
+# loader.simplify_data_shape()
 loader.load_stops()
-loader.analyse_data()
+loader.map_vehicle_pos()
+loader.load_speed()
 time_end = time.perf_counter()
 print(f"Time to load the data {time_end - time_start:0.4f} seconds")
