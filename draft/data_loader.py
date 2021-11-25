@@ -137,8 +137,9 @@ class DataLoader:
             distance = geodesic(coord1, coord2).meters - float(distance_from_point)
             t = (arrival - departure).total_seconds()
             speed = distance / t
-            if math.isnan(speed): return
-            else :
+            if math.isnan(speed):
+                return
+            else:
                 return "{:.3}f".format(speed)
         except KeyError:
             return
