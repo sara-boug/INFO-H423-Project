@@ -20,25 +20,28 @@ import statistics
 def map_time(dataset):
     return dataset['time']
 
-
 def map_lines(responses):
     return responses['lines']
 
-
-# getting 2 timestamp (2 calls)
 with open("./splited_json/splited_json/vehiclePosition01.json", "r") as read_file:
     data = json.load(read_file)
 
+testlist = data['data']
 
-testlist = data['data'][0:50]
-
+def compute_speed(d1, d2, t1, t2):
+    t1 = datetime.strptime(time.strftime('%H:%M:%S',time.gmtime(float(t1)/1000.)),
+     '%H:%M:%S')
+    t2 = datetime.strptime(time.strftime('%H:%M:%S',time.gmtime(float(t2)/1000.)),
+     '%H:%M:%S')
+    duration = (t2 - t1).total_seconds()
+    distance = d2 - d1
+    return round((distance / duration), 2)  
 
 def map_lineIDs(lines):
-    return {'lineId':lines['lineId'],'SpeedLineId':[],'TimelineId':[] }
+    return {'lineId':lines['lineId'],'SpeedLineId':[],'TimelineId':[]}
 def map_lines(responses):
     li = [item  for res in responses for item in res['lines']]
-
-    return list(map(map_lineIDs, li)) 
+    return list(map(map_lineIDs, li))
 
 speed_list = map_lines(testlist[0]['Responses']) # Prepare a list of lineID with it list of speed over timestamps calls    
 #li_time = list(map(map_time, testlist))# Map the timestamp list
@@ -52,7 +55,7 @@ for idx, call in enumerate(testlist): # loop in all timestamp responses
         speed_stop_list = [] #at the end of the loop, this list contain all speed in all stop station
         speed_first_api_call = []
         if idx == 0 : # case when we are in the first timestamp, compute the speed = distanceFromPointID/ 30 secondes
-            speed_first_api_call = [pos['distanceFromPoint']/30 for pos in
+            speed_first_api_call = [pos['distanceFromPoint']/30.00 for pos in
              line['vehiclePositions']] 
         else: # general cases when we are in Timestamp Ti
             last_time_call = testlist[idx-1]['time'] # get the last timestamp
@@ -61,29 +64,30 @@ for idx, call in enumerate(testlist): # loop in all timestamp responses
                  if resp is not None for item in resp['lines'] for pos in
                   item['vehiclePositions']] # this map the last timestamp distances for all pointID 
                 for di in map_last_distance: # loop on all last distance in order to compare direction, pointID, and distance i should be >distance i-1
-                    if vehicle_position['directionId'] == di['directionId'] and vehicle_position['pointId'] == di['pointId'] and vehicle_position['distanceFromPoint'] > di['distanceFromPoint']:  
+                    if vehicle_position['directionId'] == di['directionId'] and \
+                     vehicle_position['pointId'] == di['pointId'] and \
+                      vehicle_position['distanceFromPoint'] >= di['distanceFromPoint']:  
                         # thischeck get the most relevant data to compute speed
-                        speed = (vehicle_position['distanceFromPoint'] -
-                         di['distanceFromPoint'])/(int(time_call) - int(last_time_call)) 
+                        speed = compute_speed(di['distanceFromPoint'],
+                         vehicle_position['distanceFromPoint'], last_time_call,
+                          time_call)
+                        #speed = (vehicle_position['distanceFromPoint'] -
+                        # di['distanceFromPoint'])/(int(time_call) - int(last_time_call)) 
+                        #print("\n and this is the speed" , speed)
                         speed_stop_list.append(speed) # add new stop speed
                         break
 
         for li in speed_list:# loop in the prepared list of speed per line and update it with new speed
                 if li['lineId'] == line['lineId']:
-                    if idx == 0 and speed_first_api_call :
-                        li['SpeedLineId'].append(round(statistics.median(speed_first_api_call),2))## get the reel stat mean after!!
-                        li['TimelineId'].append(time.strftime('%H:%M:%S',time.gmtime(float(time_call)/1000.)))
-
-                    elif  speed_stop_list :
-                        li['SpeedLineId'].append(round(statistics.median(speed_stop_list),2))
-                        li['TimelineId'].append(time.strftime('%H:%M:%S',time.gmtime(float(time_call)/1000.)))
-
+                    if idx == 0 and speed_first_api_call:
+                        li['SpeedLineId'].append(statistics.mean(speed_first_api_call))## get the reel stat mean after!!
+                        li['TimelineId'].append(time.strftime('%H:%M:%S',
+                         time.gmtime(float(time_call)/1000.)))
+                    elif  speed_stop_list:
+                        li['SpeedLineId'].append(statistics.mean(speed_stop_list))
+                        li['TimelineId'].append(time.strftime('%H:%M:%S',
+                         time.gmtime(float(time_call)/1000.)))
                     break
-                    #speed_per_line.append(statistics.mean(speed_per_line))
-            
-    # case when we are in the first tipe point >>> idx = 0
-    
-
 
 # write to file
 """
