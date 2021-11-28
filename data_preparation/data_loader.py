@@ -80,7 +80,7 @@ class DataLoader:
         self.simplify_data_shape()
         file = open(self.online_offline_data_file, 'w')
         csv_writer = csv.writer(file)
-        csv_writer.writerow(['actual_time', 'expected_time', 'speed', 'line_id'])
+        csv_writer.writerow(['actual_time', 'delay', 'speed', 'line_id'])
         dataframe = pd.read_csv(self.simplified_vehicle_position_file)
         # grouping per line_id
         data = dataframe.groupby(['line_id'])
@@ -174,38 +174,54 @@ class DataLoader:
 
         on each iteration pair of items are extracted and the necessary computations are performed on these
         """
-        cumul_delay = 0
+
         for index1 in self.vehicle_positions:
             lines = self.vehicle_positions[index1]
             for index2 in lines:
-                # one can see that there is index1 and index2 this reflects the fact
+                # one can see that there  is index1 and index2 this reflects the fact
                 data = lines[index2]['data']
                 length = len(data)
-                for i in range(1, length):
+                # we keep track of the time when the vehicle initially pass by a specific point id
+                real_departure = data[0]['time']
+                real_distance = data[0]['distanceFromPoint']
+                i = 0
+                while i < length - 2:
+                    i = i + 1
                     # extracting the pair of data
                     item1 = data[i - 1]
                     item2 = data[i]
-
                     try:
-                        # the interest is centred when Specific vehicle reaches its destination
+
+                        # the interest is centred when a Specific vehicle reaches a different point,
+                        # meaning two element with different point_ids
                         if item1['pointId'] != item2['pointId']:
                             distance = self.__calculate_distance(point1=str(item1['pointId']),
                                                                  point2=str(item2['pointId']),
-                                                                 distance_point1=item1['distanceFromPoint'],
+                                                                 distance_point1=real_distance,
                                                                  distance_point2=item2['distanceFromPoint'])
-                            speed, time1, time2 = self.__calculate_speed(distance, item1['time'], item2['time'], True)
-                            if speed == 0: continue  # exclude the speed
+                            speed, time1, time2 = self.__calculate_speed(distance, real_departure, item2['time'], True)
+                            if speed == 0: continue  # exclude the speed when its 0
                             expected_arrival_time, delay = self.__calculate__offline_time(item1['time'],
                                                                                           item2['pointId'],
                                                                                           distance)
+
                             # write to the CSV file
                             csv_writer.writerow(
-                                [time2.strftime("%H:%M:%S"), expected_arrival_time, speed, item2['line_id']])
+                                [time2.strftime("%H:%M:%S"), delay, speed, item2['line_id']])
 
+                            # this condition handles the fact that a vehicle reached its terminal
+                            # in this case a new point is instantiated, meaning updating the departure
+                            if item1['directionId'] == item2['pointId']:
+                                # increment
+                                i = i + 2
 
-                        else:
-                            continue
+                                real_departure = data[i]['time']
+                                real_distance = item2['distanceFromPoint']
+                                continue
 
+                            # update the departure and distance from point according to the latest element
+                            real_departure = item2['time']
+                            real_distance = item2['distanceFromPoint']
                     except:
                         continue
 
