@@ -83,12 +83,12 @@ def get_previous_timestamps(timestamps):
             for v in range(len(times[h])):
                 if int(times[h][v]) > timestamps[pos]:
                     if v != 0:
-                        previous_timestamps.append((h, v-1, int(times[h][v-1])))
+                        previous_timestamps.append([h, v-1, int(times[h][v-1])])
                         pos += 1
                         if pos == len(timestamps):
                             break
                     else:
-                        previous_timestamps.append((h, v, int(times[h][v])))
+                        previous_timestamps.append([h, v, int(times[h][v])])
                         pos += 1
                         if pos == len(timestamps):
                             break
@@ -97,9 +97,29 @@ def get_previous_timestamps(timestamps):
     return previous_timestamps
 
 
-
-
-
+# refresh vehicles
+def refresh_vehicles(file_ac, time_p, l_id):
+    """
+    Find all vehicles present at a time (tim_p) on a particular line (l_ID)
+    :param file_ac:
+    :param time_p: time position in times
+    :param l_id: line Id
+    :return:
+    """
+    found = False
+    vehicles = None
+    if time_p < 0:      # first time issue
+        time_p = 0
+    for r in range(len(file_ac[0][time_p]['Responses'])):
+        if file_ac[0][time_p]['Responses'][r] is not None:
+            for d in range(len(file_ac[0][time_p]['Responses'][r]["lines"])):  # per line Id records
+                if l_id == int(file_ac[0][time_p]['Responses'][r]["lines"][d]["lineId"]):  # lineId
+                    vehicles = file_ac[0][time_p]['Responses'][r]["lines"][d]["vehiclePositions"]
+                    found = True
+                    break
+        if found:
+            break
+    return vehicles
 
 
 def get_real_time_data(trip_id, timestamp):
@@ -115,12 +135,14 @@ if __name__ == "__main__":
              'vehiclePosition09.json', 'vehiclePosition10.json', 'vehiclePosition11.json', 'vehiclePosition12.json',
              'vehiclePosition13.json']
     times = []
+    file_access = []
     print("Loading")
     for file in files:
         file_name = 'Data/'+file
         with open(file_name, 'r') as f:
             objects = ijson.items(f, "data")
             data = list(objects)
+            file_access.append(data)
         stamps = []
         for i in range(len(data[0])):  # per timeslot records
             time = data[0][i]['time']
@@ -168,13 +190,14 @@ if __name__ == "__main__":
     # Find the dates of the trips
     dates = get_trip_dates(service_id)
 
-    # Transform it into timestamp
+    # Transform it into timestamp then get the previous timestamps
     print(dates)
     trip_start_time = df['arrival_time'][0]
     timestamps = dates_to_timestamps(trip_start_time, dates)
+    timestamps = get_previous_timestamps(timestamps)
     print(timestamps)
-    print(get_previous_timestamps(timestamps))
 
+    # searching for online data
+    print(refresh_vehicles(file_access[timestamps[0][0]], timestamps[0][1], int(line_id)))
 
-    timestamp = 1630962838000
-    get_real_time_data(trip_id, timestamp)
+    #get_real_time_data(trip_id, timestamp)
