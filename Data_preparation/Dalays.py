@@ -1,5 +1,6 @@
 import ijson
 import pandas as pd
+import datetime
 
 
 def get_stop_name(stop):
@@ -34,12 +35,30 @@ def get_trip_dates(service_id):
     thursday, friday = date['thursday'][0], date['friday'][0]
     saturday, sunday, start_date = date['saturday'][0], date['sunday'][0], date['start_date'][0]
     end_date = date['end_date'][0]
-    print(monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date)
+    generate_dates(monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date)
     # generate the dates
 
 
 def generate_dates(monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date):
-    pass
+    # 1, 1, 1, 1, 1, 0, 0, 20210823, 20210831
+    days = [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+    start_date = str(start_date)
+    end_date = str(end_date)
+    start_date = start_date[0:4]+'/'+start_date[4:6]+'/'+start_date[6:8]
+    end_date = end_date[0:4] + '/' + end_date[4:6] + '/' + end_date[6:8]
+    start_date = datetime.datetime.strptime(start_date, "%Y/%m/%d")
+    end_date = datetime.datetime.strptime(end_date, "%Y/%m/%d")
+    dates = []
+    real_data_start_time = datetime.datetime(2021, 9, 6, 0, 0)
+    real_data_stop_time = datetime.datetime(2021, 9, 21, 0, 0)
+    print('date should be between  : ', real_data_start_time, real_data_stop_time)
+    end_date += datetime.timedelta(days=1)
+    while start_date != end_date:
+        # need to check if the real time data covers the date or not
+        if days[start_date.weekday()] == 1:
+            dates.append(start_date.strftime('%d/%m/%Y'))
+        start_date += datetime.timedelta(days=1)
+    print(dates)
 
 
 def get_real_time_data(trip_id, timestamp):
