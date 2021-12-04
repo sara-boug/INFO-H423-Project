@@ -75,6 +75,33 @@ def dates_to_timestamps(trip_start_time, dates):
     return timestamps
 
 
+def get_previous_timestamps(timestamps):
+    previous_timestamps = []
+    pos = 0
+    for h in range(len(times)):
+        if timestamps[pos] <= int(times[h][-1]):
+            for v in range(len(times[h])):
+                if int(times[h][v]) > timestamps[pos]:
+                    if v != 0:
+                        previous_timestamps.append((h, v-1, int(times[h][v-1])))
+                        pos += 1
+                        if pos == len(timestamps):
+                            break
+                    else:
+                        previous_timestamps.append((h, v, int(times[h][v])))
+                        pos += 1
+                        if pos == len(timestamps):
+                            break
+        if pos == len(timestamps):
+            break
+    return previous_timestamps
+
+
+
+
+
+
+
 def get_real_time_data(trip_id, timestamp):
     pass
 
@@ -146,6 +173,7 @@ if __name__ == "__main__":
     trip_start_time = df['arrival_time'][0]
     timestamps = dates_to_timestamps(trip_start_time, dates)
     print(timestamps)
+    print(get_previous_timestamps(timestamps))
 
 
     timestamp = 1630962838000
