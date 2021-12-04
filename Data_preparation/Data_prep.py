@@ -142,3 +142,8 @@ if __name__ == "__main__":
     speed = pd.Series(speed)
     dataFrame['Speed'] = speed
     print(dataFrame)
+
+    # creating a csv file
+    dataFrame['time'] = pd.to_datetime(dataFrame['time'], unit='ms')
+    dataFrame.to_csv('json_one.csv', index=False)
+
