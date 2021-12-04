@@ -81,17 +81,25 @@ def get_real_time_data(trip_id, timestamp):
 
 if __name__ == "__main__":
 
-    file_name = 'Data/vehiclePosition01.json'
-    with open(file_name, 'r') as f:
-        objects = ijson.items(f, "data")
-        data = list(objects)
-
     ##########################################################
-    # timestamp extraction for the json
+    # timestamp extraction from all json files
+    files = ['vehiclePosition01.json', 'vehiclePosition02.json', 'vehiclePosition03.json', 'vehiclePosition04.json',
+             'vehiclePosition05.json', 'vehiclePosition06.json', 'vehiclePosition07.json', 'vehiclePosition08.json',
+             'vehiclePosition09.json', 'vehiclePosition10.json', 'vehiclePosition11.json', 'vehiclePosition12.json',
+             'vehiclePosition13.json']
     times = []
-    for i in range(len(data[0])):  # per timeslot records
-        time = data[0][i]['time']
-        times.append(time)
+    print("Loading")
+    for file in files:
+        file_name = 'Data/'+file
+        with open(file_name, 'r') as f:
+            objects = ijson.items(f, "data")
+            data = list(objects)
+        stamps = []
+        for i in range(len(data[0])):  # per timeslot records
+            time = data[0][i]['time']
+            stamps.append(time)
+        times.append(stamps)
+    print("Loaded")
     ##########################################################
     # dataFrame for searching a line ID
     lineId_df = pd.read_csv('Data/gtfs3Sept/routes.txt')
