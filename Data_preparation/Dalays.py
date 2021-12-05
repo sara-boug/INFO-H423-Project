@@ -122,6 +122,15 @@ def refresh_vehicles(file_ac, time_p, l_id):
     return vehicles
 
 
+def get_next_timestamp(timestamp):
+    timestamp[1] += 1
+    if timestamp[1] == len(times[timestamp[0]]):
+        timestamp[0] += 1
+        timestamp[1] = 0
+    timestamp[2] = times[timestamp[0]][timestamp[1]]
+    return timestamp
+
+
 def get_real_time_data(trip_id, timestamp):
     pass
 
@@ -199,5 +208,17 @@ if __name__ == "__main__":
 
     # searching for online data
     print(refresh_vehicles(file_access[timestamps[0][0]], timestamps[0][1], int(line_id)))
+    timestamps[0] = get_next_timestamp(timestamps[0])
+    print(timestamps[0])
+    timestamps[0] = get_next_timestamp(timestamps[0])
+    print(timestamps[0])
+    timestamps[0] = get_next_timestamp(timestamps[0])
+    print(timestamps[0])
+    timestamps[0] = get_next_timestamp(timestamps[0])
+    print(timestamps[0])
+    timestamps[0] = get_next_timestamp(timestamps[0])
+    print(timestamps[0])
+    timestamps[0] = get_next_timestamp(timestamps[0])
+    print(timestamps[0])
 
     #get_real_time_data(trip_id, timestamp)
