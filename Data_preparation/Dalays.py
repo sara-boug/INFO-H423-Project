@@ -1,4 +1,5 @@
 import ijson
+import numpy
 import pandas as pd
 import datetime
 
@@ -137,6 +138,7 @@ def select_vehicle(pos, direction_id):
     global vehicles
     global online_data
     global timestamp
+    end = 0
     if vehicles is not None:    # None is the case when there is no line Id information found in Json
         for v in vehicles:
             if v['directionId'] == str(direction_id) and int(v['distanceFromPoint']) == 0:
@@ -152,6 +154,11 @@ def select_vehicle(pos, direction_id):
                     online_data.append([timestamp[2], v])
                     pos += 3                                # sometimes the vehicle skip 2 stations
                     return pos
+            if pos >= len(stop_sequence) - 4:
+                if v['directionId'] == str(direction_id) and numpy.int64(v['pointId']) in stop_sequence[pos:]:
+                    end += 1                                 # sometime the vehicle skip the terminus
+        if pos >= len(stop_sequence) - 4 and end == 0:
+            return len(stop_sequence)-1
     return pos
 
 
