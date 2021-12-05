@@ -177,7 +177,9 @@ if __name__ == "__main__":
     times = []
     file_access = []
     print("Loading")
+    test = 0
     for file in files:
+        test += 1
         file_name = 'Data/'+file
         with open(file_name, 'r') as f:
             objects = ijson.items(f, "data")
@@ -189,7 +191,8 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        break
+        if test == 10:
+            break
     print("Loaded")
     ##########################################################
     # dataFrame for searching a line ID
@@ -241,20 +244,19 @@ if __name__ == "__main__":
     print(timestamps)
 
     # searching for online data
+    online_data = []
     for ts in timestamps:
         searching = True
-        online_data = []
         timestamp = ts
         pos = -1
         while searching:
-            print(timestamp[2])
+            # print(timestamp[2])
             vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1], int(line_id))   # note it is timestamp[1]!
             pos = select_vehicle(pos, direction_id)
             if pos == len(stop_sequence)-1:
                 searching = False
             else:
                 timestamp = get_next_timestamp(timestamp)
-        break
     print(online_data)
 
 
