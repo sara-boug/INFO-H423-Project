@@ -131,6 +131,30 @@ def get_next_timestamp(timestamp):
     return timestamp
 
 
+# find vehicle
+def select_vehicle(pos, direction_id):
+    selected = []
+    global vehicles
+    global online_data
+    global timestamp
+    if vehicles is not None:    # None is the case when there is no line Id information found in Json
+        for v in vehicles:
+            if v['directionId'] == str(direction_id) and int(v['distanceFromPoint']) == 0:
+                if v['pointId'] == str(stop_sequence[pos+1]):
+                    online_data.append([timestamp[2], v])
+                    pos += 1                                # the vehicle should arrive to the next station
+                    return pos
+                elif len(stop_sequence) > pos+2 and v['pointId'] == str(stop_sequence[pos+2]):
+                    online_data.append([timestamp[2], v])
+                    pos += 2                                # sometimes the vehicle skip 1 station
+                    return pos
+                elif len(stop_sequence) > pos+3 and v['pointId'] == str(stop_sequence[pos+3]):
+                    online_data.append([timestamp[2], v])
+                    pos += 3                                # sometimes the vehicle skip 2 stations
+                    return pos
+    return pos
+
+
 def get_real_time_data(trip_id, timestamp):
     pass
 
@@ -152,11 +176,13 @@ if __name__ == "__main__":
             objects = ijson.items(f, "data")
             data = list(objects)
             file_access.append(data)
+            # f.close()
         stamps = []
         for i in range(len(data[0])):  # per timeslot records
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
+        break
     print("Loaded")
     ##########################################################
     # dataFrame for searching a line ID
@@ -191,7 +217,8 @@ if __name__ == "__main__":
     print("trip_id = ", trip_id, "\nstop_sequence = ", stop_sequence)
 
     # Find the line id
-    line_id = get_line_id(stop_sequence[0], stop_sequence[-1])
+    direction_id = stop_sequence[-1]
+    line_id = get_line_id(stop_sequence[0], direction_id)
 
     # Find the service id from the trip id
     service_id = get_service_id(trip_id)  # we don't really need to search for the service id it is in the trip Id
@@ -207,18 +234,26 @@ if __name__ == "__main__":
     print(timestamps)
 
     # searching for online data
-    print(refresh_vehicles(file_access[timestamps[0][0]], timestamps[0][1], int(line_id)))
-    timestamps[0] = get_next_timestamp(timestamps[0])
-    print(timestamps[0])
-    timestamps[0] = get_next_timestamp(timestamps[0])
-    print(timestamps[0])
-    timestamps[0] = get_next_timestamp(timestamps[0])
-    print(timestamps[0])
-    timestamps[0] = get_next_timestamp(timestamps[0])
-    print(timestamps[0])
-    timestamps[0] = get_next_timestamp(timestamps[0])
-    print(timestamps[0])
-    timestamps[0] = get_next_timestamp(timestamps[0])
-    print(timestamps[0])
+    for ts in timestamps:
+        searching = True
+        online_data = []
+        timestamp = ts
+        pos = -1
+        while searching:
+            print(timestamp[2])
+            vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1], int(line_id))   # note it is timestamp[1]!
+            pos = select_vehicle(pos, direction_id)
+            if pos == len(stop_sequence)-1:
+                searching = False
+            else:
+                timestamp = get_next_timestamp(timestamp)
+        break
+    print(online_data)
+
+
+    #print(refresh_vehicles(file_access[timestamps[0][0]], timestamps[0][1], int(line_id)))
+    #timestamps[0] = get_next_timestamp(timestamps[0])
+    #print(timestamps[0])
+
 
     #get_real_time_data(trip_id, timestamp)
