@@ -1,0 +1,143 @@
+---
+title: "INFOH423 – Project: Hack my Ride"
+author: "Team: B.Sara, B. Sid Ahmed, H. Ammar, E. Oussama"
+output: pdf_document
+params: 
+       dt_hour: dt_hour
+       dt_moments: dt_moments
+       dt_type: dt_type
+       stops_bxl: stops_bxl
+---
+
+
+# 0.Description initial dataset
+
+### 0.1 Data loading schema
+
+### 0.2 Data description
+
+# Task 1: "Analyze vehicle speed"
+
+### 1.1 Task pipeline schema
+
+
+### 1.2 Pseudo-algorithm schema 
+
+### 1.2 Let's have a look on the data and summary stat.
+```{r, echo = FALSE, warning = FALSE}
+
+# Modules to load 
+library(data.table)
+library(lubridate)
+library(openxlsx)
+library(DT)
+library(ggplot2)
+library(skimr)
+
+# View Data 
+datatable(dt_hour)
+
+# Summary Stat of input 
+skim(dt_hour)
+
+```
+
+### 1.3 Vizualize hourly average speed by typology
+```{r, echo = FALSE, warning = FALSE, fig.width = 15}
+
+metro <- ggplot(data = dt_hour[type_vehicle == 'm', ], aes(x = hour, y = avg_speed_hour, col = line_id, group = line_id)) + 
+  geom_point() +
+  geom_line() +
+  theme_minimal() +
+  ggtitle('What is the average hourly speed of the METRO STIB lines?')
+metro
+
+bus <- ggplot(data = dt_hour[type_vehicle == 'b', ], aes(x = hour, y = avg_speed_hour, col = line_id, group = line_id)) + 
+  geom_point() +
+  geom_line() +
+  theme_minimal() +
+  ggtitle('What is the average hourly speed of the BUS STIB lines?')
+bus
+
+
+tram <- ggplot(data = dt_hour[type_vehicle == 't', ], aes(x = hour, y = avg_speed_hour, col = line_id, group = line_id )) + 
+  geom_point() +
+  geom_line() +
+  theme_minimal() +
+  ggtitle('What is the average hourly speed of the TRAM STIB lines?')
+tram
+
+```
+
+
+### 1.4 Visualize plots by moments and typology
+
+```{r, echo = FALSE, warning=F, fig.width=15}
+dt_moments[, line_id := as.factor(line_id)]
+dt_moments[, moments := factor(moments, level = c('morning', 'afternoon', 'evening', 'night'))]
+
+ggplot(data = dt_moments, 
+       aes(x = moments, y = avg_speed_moments, col = type_vehicle, group = type_vehicle ))  +
+  geom_point() +
+  geom_line() + 
+  theme_minimal() + 
+  ggtitle('Average speed by moments: all lines')
+```
+
+
+
+
+# Task 2: "Analyze vehicle delays in Seconds."
+
+
+### 2.1 Task pipeline schema
+
+
+### 2.2 Pseudo-algorithm schema 
+
+
+### 2.2. Visualization by vehicle type
+```{r, echo = F, warning =F}
+metro_delay <- ggplot(data = dt_hour[type_vehicle == 'm', ], aes(x = hour, y = avg_delay_hour, col = line_id, group = line_id)) + 
+  geom_point() +
+  geom_line() +
+  theme_minimal() +
+  ggtitle('What is the average hourly delay (sec.) of the METRO STIB lines?')
+metro_delay
+
+bus_delay <- ggplot(data = dt_hour[type_vehicle == 'b', ], aes(x = hour, y = avg_delay_hour, col = line_id, group = line_id)) + 
+  geom_point() +
+  geom_line() +
+  theme_minimal() +
+  ggtitle('What is the average delay (sec.) of the BUS STIB lines?')
+bus_delay
+
+
+tram_delay <- ggplot(data = dt_hour[type_vehicle == 't', ], aes(x = hour, y = avg_delay_hour, col = line_id, group = line_id )) + 
+  geom_point() +
+  geom_line() +
+  theme_minimal() +
+  ggtitle('What is the average hourly delay (sec.) of the TRAM STIB lines?')
+tram_delay
+```
+
+
+### 2.3 Visualization by moments and vehicle 
+```{r, echo = FALSE, warning = FALSE, fig.width=15}
+ggplot(data = dt_moments, 
+       aes(x = moments, y = avg_delay_moments, col = type_vehicle, group = type_vehicle))  +
+  geom_point() +
+  geom_line() + 
+  theme_minimal() + 
+  ggtitle('Average delay moments: all lines')
+```
+
+
+### 2.4 Testing coordinates map w.r.t to stops
+
+
+### Data coordinates w.r.t to the stops 
+```{r, echo =FALSE, warning =FALSE}
+datatable(stops_bxl)
+```
+
