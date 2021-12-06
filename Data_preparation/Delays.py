@@ -16,7 +16,9 @@ def get_line_id(start_pos, stop_pos):
     route_long_name += get_stop_name(start_pos)
     route_long_name += " - "
     route_long_name += get_stop_name(stop_pos)
-    line_id = lineId_df.loc[lineId_df['route_long_name'] == route_long_name]
+    name_inverse = get_stop_name(stop_pos) + ' - ' + get_stop_name(start_pos)
+    names = [route_long_name, name_inverse]
+    line_id = lineId_df[lineId_df['route_long_name'].isin(names)]
     line_id.reset_index(inplace=True)
     return line_id['route_short_name'][0]
 
@@ -271,7 +273,7 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        if test == 10:
+        if test == 1:
             break
     print("Loaded")
     ##########################################################
@@ -297,7 +299,7 @@ if __name__ == "__main__":
 
     ##########################################################
     # read stop_times
-    df = pd.read_csv('herman_debr.txt')
+    df = pd.read_csv('example.txt')
     df.drop(labels=['departure_time', 'pickup_type', 'drop_off_type'], axis=1, inplace=True)
     # print(df)
     trip_id = df['trip_id'][0]
@@ -308,61 +310,66 @@ if __name__ == "__main__":
         offline_times.append(df['arrival_time'][i])
     print("trip_id = ", trip_id, "\nstop_sequence = ", stop_sequence)
 
-    # Find the line id
-    direction_id = stop_sequence[-1]
-    line_id = get_line_id(stop_sequence[0], direction_id)
-
     # Find the service id from the trip id
     service_id = get_service_id(trip_id)  # we don't really need to search for the service id it is in the trip Id
 
     # Find the dates of the trips
     dates = get_trip_dates(service_id)
 
-    # Transform it into timestamp then get the previous timestamps
-    print(dates)
-    trip_start_time = offline_times[0]
-    timestamps = dates_to_timestamps(trip_start_time, dates)
-    timestamps = get_previous_timestamps(timestamps)
-    print(timestamps)
+    # if we have real time data dor those dates search can start
+    if len(dates) != 0:
+        print(dates)
 
-    # searching for realtime data
-    real_time_data = []
-    for ts in timestamps:
-        searching = True
-        timestamp = ts
-        pos = -1
-        fetching_data = []
-        while searching:
-            vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1], int(line_id))   # note it is timestamp[1]!
-            pos = select_vehicle(pos, direction_id)
-            if pos == len(stop_sequence)-1:
-                searching = False
-            else:
-                timestamp = get_next_timestamp(timestamp)
-        real_time_data.append(fetching_data)
-    # print(real_time_data)
+        # Find the line id
+        direction_id = stop_sequence[-1]
+        line_id = get_line_id(stop_sequence[0], direction_id)
+        print("line_Id = ", line_id)
 
-    ##########################################################
-    # Delay calculation
-    save = ""
-    for i in range(len(real_time_data)):
+        # Transform it into timestamp then get the previous timestamps
+        trip_start_time = offline_times[0]
+        timestamps = dates_to_timestamps(trip_start_time, dates)
+        timestamps = get_previous_timestamps(timestamps)
+        print(timestamps)
 
-        # Transforming offline times into timestamp using the right date
-        offline_timestamps = get_offline_timestamps(offline_times, dates[i])
-        # print(offline_timestamps)
-        data_collected = real_time_data[i]
-        # print(data_collected)
+        # searching for realtime data
+        real_time_data = []
+        for ts in timestamps:
+            searching = True
+            timestamp = ts
+            pos = -1
+            fetching_data = []
+            while searching:
+                vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1], int(line_id))   # note it is timestamp[1]!
+                pos = select_vehicle(pos, direction_id)
+                if pos == len(stop_sequence)-1:
+                    searching = False
+                else:
+                    timestamp = get_next_timestamp(timestamp)
+            real_time_data.append(fetching_data)
+        # print(real_time_data)
 
-        # Cleaning the collected data (if needed)
-        if len(data_collected) != len(stop_sequence):
-            data_collected = clean_data(data_collected)
-        print("clean = ", data_collected)
-
+        ##########################################################
         # Delay calculation
-        delays = get_trip_delays(data_collected)
-        # print("Delays = ", delays)
+        save = ""
+        for i in range(len(real_time_data)):
 
-        # Saving results
-        save += save_line(trip_id, dates[i], line_id, direction_id, delays)
+            # Transforming offline times into timestamp using the right date
+            offline_timestamps = get_offline_timestamps(offline_times, dates[i])
+            # print(offline_timestamps)
+            data_collected = real_time_data[i]
+            # print(data_collected)
 
-    print(save)
+            # Cleaning the collected data (if needed)
+            if len(data_collected) != len(stop_sequence):
+                data_collected = clean_data(data_collected)
+            print("clean = ", data_collected)
+
+            # Delay calculation
+            delays = get_trip_delays(data_collected)
+            # print("Delays = ", delays)
+
+            # Saving results
+            save += save_line(trip_id, dates[i], line_id, direction_id, delays)
+        print(save)
+    else:
+        print("No real time data covering this trip")
