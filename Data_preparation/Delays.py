@@ -223,10 +223,8 @@ def get_trip_delays(data_collected):
     return trip_delays
 
 
-
-
-def get_real_time_data(trip_id, timestamp):
-    pass
+def save_line(trip_id, date, line_id, direction_id, delays):
+    return str(trip_id) + ',' + str(date) + ',' + str(line_id) + ',' + str(direction_id) + ',' + str(delays) + '\n'
 
 
 if __name__ == "__main__":
@@ -327,7 +325,7 @@ if __name__ == "__main__":
 
     ##########################################################
     # Delay calculation
-
+    save = ""
     for i in range(len(real_time_data)):
 
         # Transforming offline times into timestamp using the right date
@@ -345,6 +343,6 @@ if __name__ == "__main__":
         print("Delays = ", delays)
 
         # Saving results
+        save += save_line(trip_id, dates[i], line_id, direction_id, delays)
 
-
-    #get_real_time_data(trip_id, timestamp)
+    print(save)
