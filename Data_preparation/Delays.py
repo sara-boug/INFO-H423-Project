@@ -182,15 +182,34 @@ def clean_data(dirty_data):
             stop_position += 1
         else:
             gap = get_gap(stop_position, data_point[1]['pointId'])
-            fill_data = get_data_to_fill(cleaned_data[-1][0], data_point[0], gap)
-            for i in range(gap):
-                cleaned_data.append(fill_data[i])
-            cleaned_data.append([data_point[0], data_point[1]['pointId']])
-            stop_position += gap+1
-    if len(cleaned_data) != len(stop_sequence): # last stop case
+            if stop_position != 0:
+                fill_data = get_data_to_fill(cleaned_data[-1][0], data_point[0], gap)
+                for i in range(gap):
+                    cleaned_data.append(fill_data[i])
+                cleaned_data.append([data_point[0], data_point[1]['pointId']])
+                stop_position += gap+1
+            else:                               # first station missing case
+                if gap == 1:
+                    cleaned_data.append([int(offline_timestamps[0]), 'estimated'])  # Assumption: starts on time
+                else:
+                    cleaned_data.append([int(offline_timestamps[0]), 'estimated'])  # Assumption: starts on time
+                    cleaned_data.append([int(offline_timestamps[1]), 'estimated'])  # Assumption: no delay on station2
+                cleaned_data.append([data_point[0], data_point[1]['pointId']])
+                stop_position += gap + 1
+    if len(cleaned_data) == len(stop_sequence) - 1:         # last station missing case
         delay_to_terminus = int(offline_timestamps[-1]) - int(offline_timestamps[-2])
         time_to_terminus = int(cleaned_data[-1][0]) + delay_to_terminus
         cleaned_data.append([time_to_terminus, 'estimated'])
+    elif len(cleaned_data) == len(stop_sequence) - 2:         # 2 last stations missing case
+        # station before terminus
+        delay_to_station_before_terminus = int(offline_timestamps[-2]) - int(offline_timestamps[-3])  # no delay
+        time_to_station_before_terminus = int(cleaned_data[-1][0]) + delay_to_station_before_terminus
+        cleaned_data.append([time_to_station_before_terminus, 'estimated'])
+        # for terminus
+        delay_to_terminus = int(offline_timestamps[-1]) - int(offline_timestamps[-2])    # no delay
+        time_to_terminus = int(cleaned_data[-1][0]) + delay_to_terminus
+        cleaned_data.append([time_to_terminus, 'estimated'])
+
     return cleaned_data
 
 
@@ -252,7 +271,7 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        if test == 1:
+        if test == 10:
             break
     print("Loaded")
     ##########################################################
@@ -332,6 +351,7 @@ if __name__ == "__main__":
         offline_timestamps = get_offline_timestamps(offline_times, dates[i])
         # print(offline_timestamps)
         data_collected = real_time_data[i]
+        # print(data_collected)
 
         # Cleaning the collected data (if needed)
         if len(data_collected) != len(stop_sequence):
