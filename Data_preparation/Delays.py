@@ -136,22 +136,22 @@ def get_next_timestamp(timestamp):
 def select_vehicle(pos, direction_id):
     selected = []
     global vehicles
-    global online_data
+    global fetching_data
     global timestamp
     end = 0
     if vehicles is not None:    # None is the case when there is no line Id information found in Json
         for v in vehicles:
             if v['directionId'] == str(direction_id) and int(v['distanceFromPoint']) == 0:
                 if v['pointId'] == str(stop_sequence[pos+1]):
-                    online_data.append([timestamp[2], v])
+                    fetching_data.append([timestamp[2], v])
                     pos += 1                                # the vehicle should arrive to the next station
                     return pos
                 elif len(stop_sequence) > pos+2 and v['pointId'] == str(stop_sequence[pos+2]):
-                    online_data.append([timestamp[2], v])
+                    fetching_data.append([timestamp[2], v])
                     pos += 2                                # sometimes the vehicle skip 1 station
                     return pos
                 elif len(stop_sequence) > pos+3 and v['pointId'] == str(stop_sequence[pos+3]):
-                    online_data.append([timestamp[2], v])
+                    fetching_data.append([timestamp[2], v])
                     pos += 3                                # sometimes the vehicle skip 2 stations
                     return pos
             if pos >= len(stop_sequence) - 4:
@@ -160,6 +160,60 @@ def select_vehicle(pos, direction_id):
         if pos >= len(stop_sequence) - 4 and end == 0:
             return len(stop_sequence)-1
     return pos
+
+
+def get_offline_timestamps(offlinetimes, date):
+    offline_timestamps = []
+    for t in offlinetimes:
+        offline_timestamp = date + " " + t
+        offline_timestamp = datetime.datetime.strptime(offline_timestamp, "%d/%m/%Y %H:%M:%S")
+        offline_timestamp = offline_timestamp.timestamp() * 1000  # in millisec
+        offline_timestamps.append(int(offline_timestamp))
+    return offline_timestamps
+
+
+def clean_data(dirty_data):
+    cleaned_data = []
+    global stop_sequence
+    stop_position = 0
+    for data_point in dirty_data:
+        if data_point[1]['pointId'] == str(stop_sequence[stop_position]):
+            cleaned_data.append([data_point[0], data_point[1]['pointId']])
+            stop_position += 1
+        else:
+            gap = get_gap(stop_position, data_point[1]['pointId'])
+            fill_data = get_data_to_fill(cleaned_data[-1][0], data_point[0], gap)
+            for i in range(gap):
+                cleaned_data.append(fill_data[i])
+            cleaned_data.append([data_point[0], data_point[1]['pointId']])
+            stop_position += gap+1
+    if len(cleaned_data) != len(stop_sequence): # last stop case
+        delay_to_terminus = int(offline_timestamps[-2]) - int(offline_timestamps[-1])
+        time_to_terminus = int(cleaned_data[-1][0]) + delay_to_terminus
+        cleaned_data.append([time_to_terminus, 'estimated'])
+    return cleaned_data
+
+
+def get_gap(pos, pointId):
+    global stop_sequence
+    length = len(stop_sequence)
+    if pos + 1 < length and str(stop_sequence[pos + 1]) == pointId:
+        gap = 1
+    else:
+        gap = 2
+    return gap
+
+
+def get_data_to_fill(t1, t2, gap):
+    fill = []
+    estimated_delay = (int(t2) - int(t1)) / (gap + 1)
+    start = float(t1)
+    for i in range(gap):
+        start += estimated_delay
+        fill.append([int(start), 'estimated'])
+    return fill
+
+
 
 
 def get_real_time_data(trip_id, timestamp):
@@ -191,7 +245,7 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        if test == 10:
+        if test == 1:
             break
     print("Loaded")
     ##########################################################
@@ -222,8 +276,10 @@ if __name__ == "__main__":
     # print(df)
     trip_id = df['trip_id'][0]
     stop_sequence = []
+    offline_times = []
     for i in df.index:
         stop_sequence.append(df['stop_id'][i])
+        offline_times.append(df['arrival_time'][i])
     print("trip_id = ", trip_id, "\nstop_sequence = ", stop_sequence)
 
     # Find the line id
@@ -238,31 +294,42 @@ if __name__ == "__main__":
 
     # Transform it into timestamp then get the previous timestamps
     print(dates)
-    trip_start_time = df['arrival_time'][0]
+    trip_start_time = offline_times[0]
     timestamps = dates_to_timestamps(trip_start_time, dates)
     timestamps = get_previous_timestamps(timestamps)
     print(timestamps)
 
-    # searching for online data
-    online_data = []
+    # searching for realtime data
+    real_time_data = []
     for ts in timestamps:
         searching = True
         timestamp = ts
         pos = -1
+        fetching_data = []
         while searching:
-            # print(timestamp[2])
             vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1], int(line_id))   # note it is timestamp[1]!
             pos = select_vehicle(pos, direction_id)
             if pos == len(stop_sequence)-1:
                 searching = False
             else:
                 timestamp = get_next_timestamp(timestamp)
-    print(online_data)
+        real_time_data.append(fetching_data)
+    # print(real_time_data)
 
+    ##########################################################
+    # cleaning the collected data
 
-    #print(refresh_vehicles(file_access[timestamps[0][0]], timestamps[0][1], int(line_id)))
-    #timestamps[0] = get_next_timestamp(timestamps[0])
-    #print(timestamps[0])
+    for i in range(len(real_time_data)):
+        # transforming offline times into timestamp according to the good date
+        offline_timestamps = get_offline_timestamps(offline_times, dates[i])
+        print(offline_timestamps)
+        data_collected = real_time_data[i]
+        print(data_collected)
+        if len(data_collected) != len(stop_sequence):
+            data_collected = clean_data(data_collected)
+            print("clean = ", data_collected)
+            print(len(data_collected))
+
 
 
     #get_real_time_data(trip_id, timestamp)
