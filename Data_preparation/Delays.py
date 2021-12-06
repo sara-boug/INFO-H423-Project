@@ -188,7 +188,7 @@ def clean_data(dirty_data):
             cleaned_data.append([data_point[0], data_point[1]['pointId']])
             stop_position += gap+1
     if len(cleaned_data) != len(stop_sequence): # last stop case
-        delay_to_terminus = int(offline_timestamps[-2]) - int(offline_timestamps[-1])
+        delay_to_terminus = int(offline_timestamps[-1]) - int(offline_timestamps[-2])
         time_to_terminus = int(cleaned_data[-1][0]) + delay_to_terminus
         cleaned_data.append([time_to_terminus, 'estimated'])
     return cleaned_data
@@ -212,6 +212,15 @@ def get_data_to_fill(t1, t2, gap):
         start += estimated_delay
         fill.append([int(start), 'estimated'])
     return fill
+
+
+def get_trip_delays(data_collected):
+    trip_delays = []
+    global offline_timestamps
+    for t in range(len(offline_timestamps)):
+        delay = int(offline_timestamps[t]) - int(data_collected[t][0])
+        trip_delays.append(delay)
+    return trip_delays
 
 
 
@@ -245,7 +254,7 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        if test == 1:
+        if test == 10:
             break
     print("Loaded")
     ##########################################################
@@ -317,19 +326,25 @@ if __name__ == "__main__":
     # print(real_time_data)
 
     ##########################################################
-    # cleaning the collected data
+    # Delay calculation
 
     for i in range(len(real_time_data)):
-        # transforming offline times into timestamp according to the good date
+
+        # Transforming offline times into timestamp using the right date
         offline_timestamps = get_offline_timestamps(offline_times, dates[i])
-        print(offline_timestamps)
+        # print(offline_timestamps)
         data_collected = real_time_data[i]
-        print(data_collected)
+
+        # Cleaning the collected data (if needed)
         if len(data_collected) != len(stop_sequence):
             data_collected = clean_data(data_collected)
-            print("clean = ", data_collected)
-            print(len(data_collected))
+        print("clean = ", data_collected)
 
+        # Delay calculation
+        delays = get_trip_delays(data_collected)
+        print("Delays = ", delays)
+
+        # Saving results
 
 
     #get_real_time_data(trip_id, timestamp)
