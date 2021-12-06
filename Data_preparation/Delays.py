@@ -218,7 +218,7 @@ def get_trip_delays(data_collected):
     trip_delays = []
     global offline_timestamps
     for t in range(len(offline_timestamps)):
-        delay = int(offline_timestamps[t]) - int(data_collected[t][0])
+        delay = int(data_collected[t][0]) - int(offline_timestamps[t])
         trip_delays.append(delay)
     return trip_delays
 
@@ -252,7 +252,7 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        if test == 10:
+        if test == 1:
             break
     print("Loaded")
     ##########################################################
@@ -278,7 +278,7 @@ if __name__ == "__main__":
 
     ##########################################################
     # read stop_times
-    df = pd.read_csv('example.txt')
+    df = pd.read_csv('herman_debr.txt')
     df.drop(labels=['departure_time', 'pickup_type', 'drop_off_type'], axis=1, inplace=True)
     # print(df)
     trip_id = df['trip_id'][0]
@@ -340,7 +340,7 @@ if __name__ == "__main__":
 
         # Delay calculation
         delays = get_trip_delays(data_collected)
-        print("Delays = ", delays)
+        # print("Delays = ", delays)
 
         # Saving results
         save += save_line(trip_id, dates[i], line_id, direction_id, delays)
