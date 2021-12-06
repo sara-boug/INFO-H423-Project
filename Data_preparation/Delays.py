@@ -12,10 +12,7 @@ def get_stop_name(stop):
 
 def get_line_id(start_pos, stop_pos):
     # "GARE DE L'OUEST - STOCKEL" -> line ID = 1
-    route_long_name = ""
-    route_long_name += get_stop_name(start_pos)
-    route_long_name += " - "
-    route_long_name += get_stop_name(stop_pos)
+    route_long_name = get_stop_name(start_pos) + ' - ' + get_stop_name(stop_pos)
     name_inverse = get_stop_name(stop_pos) + ' - ' + get_stop_name(start_pos)
     names = [route_long_name, name_inverse]
     line_id = lineId_df[lineId_df['route_long_name'].isin(names)]
