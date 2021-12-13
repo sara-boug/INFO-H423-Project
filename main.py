@@ -15,12 +15,13 @@ def Execute_data_preparation():
     time_start = time.perf_counter()
 
     vehicle_position_files = os.listdir(vehicle_position_folder)
-    i = 0
+    i = 3
 
-    for vehicle_position_file in vehicle_position_files:
+    for i in range(len(vehicle_position_files)):
+        print(i)
         online_offline_data_file = os.path.join(os.getcwd(), "", "data_preparation/generated_files",
                                                 "online_offline_files" + str(i) + ".txt")
-        file = os.path.join(vehicle_position_folder, vehicle_position_file)
+        file = os.path.join(vehicle_position_folder, vehicle_position_files[i])
         loader = data_loader.DataLoader(stop_time_file_name=stop_times_fname,
                                         stop_coords_file_name=stops_fname,
                                         vehicle_position_file=file,
@@ -34,12 +35,13 @@ def Execute_data_preparation():
 
 
 def execute_data_analysis():
-    generated_folder = os.path.join(os.getcwd(), "data_preparation", "generated_files", "online_offline_files")
-    displayer = display_delay.DisplayDelay(generated_files_folder=generated_folder)
+    data_file = os.path.join(os.getcwd(), "Data", "results.txt")
+    displayer = display_delay.DisplayDelay(data_file=data_file)
     displayer.simplify_data()
     # displayer.plot_data()
     # displayer.plot_correlated_data()
-    displayer.data_decomposition()
+    # displayer.plot_data_decomposition()
+    # displayer.start_forcasting()
 
 
 execute_data_analysis()

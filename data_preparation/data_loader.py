@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import time
 
@@ -80,7 +81,7 @@ class DataLoader:
         self.simplify_data_shape()
         file = open(self.online_offline_data_file, 'w')
         csv_writer = csv.writer(file)
-        csv_writer.writerow(['actual_time', 'delay', 'speed', 'line_id'])
+        csv_writer.writerow(['actual_time', 'delay', 'speed', 'line_id', 'point_id'])
         dataframe = pd.read_csv(self.simplified_vehicle_position_file)
         # grouping per line_id
         data = dataframe.groupby(['line_id'])
@@ -207,7 +208,7 @@ class DataLoader:
 
                             # write to the CSV file
                             csv_writer.writerow(
-                                [time2.strftime("%H:%M:%S"), delay, speed, item2['line_id']])
+                                [time2, delay, speed, item2['line_id'], item2['pointId']])
 
                             # this condition handles the fact that a vehicle reached its terminal
                             # in this case a new point is instantiated, meaning updating the departure
@@ -222,8 +223,8 @@ class DataLoader:
                             # update the departure and distance from point according to the latest element
                             real_departure = item2['time']
                             real_distance = item2['distanceFromPoint']
-                    except:
-                        continue
+                    except Exception as e:
+                        print(e)
 
     def __calculate_distance(self, point1, point2, distance_point1=0, distance_point2=0, ):
         """
@@ -257,11 +258,12 @@ class DataLoader:
         :return: the speed , converted time
         """
         if is_epoch_time:
-            time1 = time.strftime('%H:%M:%S', time.localtime(int(str(time1)[:10])))
-            time2 = time.strftime('%H:%M:%S', time.localtime(int(str(time2)[:10])))
+            time1 = time.strftime("%m/%d/%Y, %H:%M:%S", time.localtime(int(str(time1)[:10])))
 
-        time1 = datetime.strptime(time1, '%H:%M:%S')
-        time2 = datetime.strptime(time2, '%H:%M:%S')
+            time2 = time.strftime("%m/%d/%Y, %H:%M:%S", time.localtime(int(str(time2)[:10])))
+
+        time1 = datetime.strptime(time1, "%m/%d/%Y, %H:%M:%S")
+        time2 = datetime.strptime(time2, "%m/%d/%Y, %H:%M:%S")
         time_diff = (time2 - time1).total_seconds()
 
         # compute distance
