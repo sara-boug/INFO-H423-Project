@@ -2,7 +2,7 @@ import os
 import time
 
 from data_preparation import data_loader
-from data_analysis import display_delay
+from delay_analysis import display_delay
 
 
 def Execute_data_preparation():
@@ -37,11 +37,12 @@ def Execute_data_preparation():
 def execute_data_analysis():
     data_file = os.path.join(os.getcwd(), "Data", "results.txt")
     displayer = display_delay.DisplayDelay(data_file=data_file)
+    displayer.parse_file()
     displayer.simplify_data()
     # displayer.plot_data()
     # displayer.plot_correlated_data()
     # displayer.plot_data_decomposition()
-    # displayer.start_forcasting()
+    displayer.start_forcasting()
 
 
 execute_data_analysis()

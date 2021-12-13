@@ -1,47 +1,69 @@
 import os
+from datetime import datetime
 
 from statsmodels.tsa.seasonal import seasonal_decompose
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from data_analysis.data_forcaster import DataForcaster
+
+from delay_analysis.data_forcaster import DataForcaster
 
 
 class DisplayDelay:
-    metro_data = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 1}
+    metro_data = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 300}
     tram_data = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 1}
-    bus_data = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 510}
+    bus_data = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 300}
     # containing the whole data
-    dframe = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 510}
+    dframe = {'dframe': pd.DataFrame(), 'time': [], 'delay': [], 'ticks': 300}
 
     def __init__(self, data_file):
         # self.generated_files_folder = generated_files_folder
         self.data_file = data_file
 
     def parse_file(self):
+        file = open(self.data_file, 'r')
+        data = []
+        header = []
+        i = 0
+        while True:
+            line = file.readline()
+            if not line: break
+            attributes = line.split(',', maxsplit=4)
+            attributes = [attribute.strip().replace('\n', '') for attribute in attributes]
+            if i == 0:
+                header = attributes
+                i = i + 1
+                continue
+            delays = (attributes[4:][0].replace('[', '').replace(']', '')).split(',')
+            try:
+                delays = [int(delay.replace(' ', '')) for delay in delays]
+                mean = np.array(delays).mean() * 0.001  # ms to s
+                sub_data = [int(attributes[0]),
+                            datetime.strptime(attributes[1], "%d/%m/%Y %H:%M:%S"),
+                            int(attributes[2]), int(attributes[3]), ]
+                sub_data = np.append(sub_data, mean)
+                data.append(sub_data)
+            except ValueError:
+                # The ERROR attribute
+                continue
+        self.dframe['dframe'] = pd.DataFrame(data, columns=header, )
 
     def simplify_data(self):
-        global_dframe = pd.DataFrame()
-        dframe = pd.read_csv(self.data_file)
-        print(dframe)
-        """dframe = dframe.groupby(['actual_time']).mean()
-        global_dframe = pd.concat([global_dframe, dframe])
+        dframe = self.dframe['dframe']
         self.__set_vehicle_data(dframe)
 
         self.metro_data = self.__set_data(self.metro_data)
-        self.bus_data = self.__set_data(self.bus_data, True)
+        self.bus_data = self.__set_data(self.bus_data, )
         self.tram_data = self.__set_data(self.tram_data)
-
-        # set the global data
-        self.dframe['dframe'] = global_dframe
-        self.dframe = self.__set_data(self.dframe, True)"""
+        self.dframe = self.__set_data(self.dframe, )
 
     def plot_data(self):
         plt.minorticks_off()
-        fig, axes = plt.subplots(3)
+        fig, axes = plt.subplots(4)
         self.__plot_subdata(self.tram_data, axes[0], title='Tram Data', color_map='limegreen')
         self.__plot_subdata(self.metro_data, axes[1], title='Metro Data', color_map='aqua')
         self.__plot_subdata(self.bus_data, axes[2], title='Bus Data', color_map='darkviolet')
+        self.__plot_subdata(self.dframe, axes[3], title='whole Data', color_map='violet')
 
         plt.show()
 
@@ -52,17 +74,16 @@ class DisplayDelay:
         axes.set_xlabel('time of the day')
         axes.set_ylabel('delay (s)')
         axes.set_title(title)
-        axes.set_xticks((data.index.tolist())[::data['ticks']], minor=False)
+        axes.set_xticks((data['dframe'].index.tolist())[::data['ticks']], minor=False)
         axes.grid()
 
     def plot_data_decomposition(self):
         self.plot_subdata_decomposition(data_obj=self.dframe)
-        # self.plot_subdata_decomposition(data_obj=self.metro_data)
         plt.show()
 
     @staticmethod
     def plot_subdata_decomposition(data_obj):
-        data = data_obj['dframe']['delay']
+        data = data_obj['dframe']['delays']
         result = seasonal_decompose(x=data, model='additive', period=180)
         figure = result.plot(resid=False)
         for axe in figure.axes:
@@ -87,18 +108,18 @@ class DisplayDelay:
 
     @staticmethod
     def __arrange_data(dframe):
-        dframe = dframe.groupby(['actual_time']).mean()
+        dframe = dframe.groupby(['date']).mean()
         dframe = dframe.sort_index()
         return dframe
 
     @staticmethod
-    def __set_data(obj, remove_outlier=False):
+    def __set_data(obj, remove_outlier=True):
         if remove_outlier:
-            obj['dframe'] = obj['dframe'][obj['dframe']['delay'] <= 1000]
-        dframe = obj['dframe'].groupby(['actual_time']).mean().sort_index()
+            obj['dframe'] = obj['dframe'][obj['dframe']['delays'] <= 10000]
+        dframe = obj['dframe'].groupby(['date']).mean().sort_index()
         obj['dframe'] = dframe
         obj['time'] = np.array(dframe.index.tolist())
-        obj['delay'] = dframe['delay'].tolist()
+        obj['delay'] = dframe['delays'].tolist()
         return obj
 
     def start_forcasting(self):

@@ -1,47 +1,41 @@
 from datetime import datetime, timedelta
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.arima_model import ARIMA
 from sklearn.metrics import mean_squared_error
+from pandas.plotting import autocorrelation_plot
 
 
 class DataForcaster:
-    p = 0
-    q = 0
-    d = 1
+    p = 1
+    q = 1
+    d = 0
     delays = None
 
     def __init__(self, dframe_data: pd.DataFrame):
         self.dframe_data = dframe_data
 
     def set_data_shape(self):
-        self.dframe_data.index = pd.to_datetime(self.dframe_data.index, format='%H:%M:%S', infer_datetime_format=True)
+        self.dframe_data.index = pd.to_datetime(self.dframe_data.index, format="%d/%m/%Y %H:%M:%S", infer_datetime_format=True)
         self.dframe_data = self.dframe_data.groupby(pd.Grouper(freq='30s')).mean()
-        self.dframe_data['time'] = pd.DatetimeIndex(self.dframe_data.index).values
-        # we need to set 00 values to 24
-        self.dframe_data.loc[
-            self.dframe_data['time'] < datetime(year=1900, month=1, day=1, hour=4, minute=00),
-            'time'] = self.dframe_data['time'] + timedelta(days=1)
-        self.dframe_data = self.dframe_data.sort_values(by=['time'])
-        self.dframe_data['time'] = self.dframe_data['time'].dt.time
-        self.dframe_data.reset_index(drop=True, inplace=True)
-        self.dframe_data.dropna(subset=['delay'], inplace=True)
-        self.dframe_data = self.dframe_data.set_index(['time'])
-        self.delays = self.dframe_data['delay'].tolist()
+        self.dframe_data = self.dframe_data.dropna()
+        self.delays = self.dframe_data['delays'].tolist()
+        print(self.dframe_data)
 
     def plot(self, delay=None, d=0):
         plt.minorticks_off()
         if delay is None:
             delay = self.delays
-        time = self.dframe_data.index.astype(str).tolist()
+        time = self.dframe_data.index.tolist()
         for i in range(d): time.pop()
         fig, axes = plt.subplots()
         axes.plot(time, delay, linewidth=1, color='orange')
         axes.set_xlabel('time of the day')
         axes.set_ylabel('delay (s)')
-        axes.set_xticks(time[::150], minor=False)
+        axes.set_xticks(time[::500], minor=False)
         axes.grid()
         plt.show()
 
@@ -49,11 +43,6 @@ class DataForcaster:
         if data is None:
             data = self.delays
         plot_acf(x=data, lags=25)
-        plt.show()
-
-    def partial_autocorrelation(self, data=None):
-        if data is None:
-            data = self.delays
         plot_pacf(x=data, lags=25)
         plt.show()
 
@@ -62,13 +51,15 @@ class DataForcaster:
         For d = 1 or d = 2  the ACF shows the same behavior,
         hence not that much reliable to estimate the d,
         hence, we rely on the d leading to the lowest
-         standard deviation
+        standard deviation
+        we also notice that the lag-1 is negative
         """
-        self.d = 1
+        self.d = 0
         model = ARIMA(self.delays, order=(0, self.d, 0))
-        model_fit = model.fit(disp=0)
+        model_fit = model.fit()
         data = model_fit.resid
         print(model_fit.summary())
+        self.plot(data,self.d)
 
     """ order of autoregressive """
 
@@ -91,8 +82,8 @@ class DataForcaster:
         model = ARIMA(self.delays, order=(0, 0, 0))
         model_fit = model.fit(disp=1)
         data = model_fit.resid
+
         self.autocorrelation(data)
-        self.partial_autocorrelation(data)
 
     def perform_training(self):
         data_size = len(self.delays)
