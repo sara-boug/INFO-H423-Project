@@ -3,6 +3,15 @@ import numpy
 import pandas as pd
 import datetime
 
+vehicles = []
+fetching_data = []
+timestamp = []
+backup = []
+line_id = None
+offline_timestamps = []
+save = "trip_id, date, line_id, direction_id, delays\n"
+error = None
+
 
 def get_stop_name(stop):
     name = station_df.loc[station_df['stop_id'] == str(stop)]
@@ -17,7 +26,13 @@ def get_line_id(start_pos, stop_pos):
     names = [route_long_name, name_inverse]
     line_id = lineId_df[lineId_df['route_long_name'].isin(names)]
     line_id.reset_index(inplace=True)
-    return line_id['route_short_name'][0]
+    if line_id.size != 0:
+        # if line_id['route_short_name'][0] == '69':
+         #   return None  # avoiding line 69
+        return line_id['route_short_name'][0]
+    global error
+    error = names
+    return None
 
 
 def get_service_id(trip_id):
@@ -43,33 +58,57 @@ def generate_dates(monday, tuesday, wednesday, thursday, friday, saturday, sunda
     # 1, 1, 1, 1, 1, 0, 0, 20210823, 20210831
     days = [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
     start_date = str(start_date)
-    end_date = str(end_date)
     start_date = start_date[0:4] + '/' + start_date[4:6] + '/' + start_date[6:8]
+    start_date += " " + clean_time(offline_times[0])  # cleaning all the time
+    start_date = datetime.datetime.strptime(start_date, "%Y/%m/%d %H:%M:%S")
+
+    end_date = str(end_date)
     end_date = end_date[0:4] + '/' + end_date[4:6] + '/' + end_date[6:8]
-    start_date = datetime.datetime.strptime(start_date, "%Y/%m/%d")
-    end_date = datetime.datetime.strptime(end_date, "%Y/%m/%d")
+    end_date += " " + clean_time(offline_times[-1])  # cleaning all the time
+    end_date = datetime.datetime.strptime(end_date, "%Y/%m/%d %H:%M:%S")
+
     dates = []
-    real_data_start_time = datetime.datetime(2021, 9, 6, 0, 0)  # 2021-09-06 00:00:00 (need to put the exact time)
-    real_data_stop_time = datetime.datetime(2021, 9, 21, 0, 0)  # 2021-09-21 00:00:00
-    # print('date should be between  : ', real_data_start_time, real_data_stop_time)
-    end_date += datetime.timedelta(days=1)
-    while start_date != end_date:
+    real_data_start_time = datetime.datetime(2021, 9, 6, 9, 54)  # 2021-09-06 09:54:46  (exact time)
+    real_data_stop_time = datetime.datetime(2021, 9, 21, 18, 19)  # 2021-09-21 18:19:13
+
+    while start_date <= end_date:
         # need to check if the real time data covers the date or not
         if start_date > real_data_stop_time:
             break
-        if days[start_date.weekday()] == 1 and start_date >= real_data_start_time:
-            dates.append(start_date.strftime('%d/%m/%Y'))
+        elif start_date.date() == real_data_stop_time.date() and days[start_date.weekday()] == 1:
+            # check if we have all the trip records
+            trip_ending_time = start_date.date() + " " + offline_times[-1]
+            if trip_ending_time <= real_data_stop_time:
+                dates.append(start_date.strftime('%d/%m/%Y %H:%M:%S'))
+        elif days[start_date.weekday()] == 1 and start_date >= real_data_start_time:
+            dates.append(start_date.strftime('%d/%m/%Y %H:%M:%S'))
         start_date += datetime.timedelta(days=1)
     return dates
 
 
-def dates_to_timestamps(trip_start_time, dates):
+def clean_time(time):
+    """
+    in some cases we have 24:00:00 -> 00:00:00
+    25:00:00 -> 01:00:00
+    :param time:
+    :return:
+    """
+    new_time = time.split(':')
+    if int(new_time[0]) == 24:
+        time = "00:" + new_time[1] + ":" + new_time[2]
+    elif int(new_time[0]) == 25:
+        time = "01:" + new_time[1] + ":" + new_time[2]
+    elif int(new_time[0]) == 26:
+        time = "02:" + new_time[1] + ":" + new_time[2]
+    elif int(new_time[0]) == 27:
+        time = "03:" + new_time[1] + ":" + new_time[2]
+    return time
+
+
+def dates_to_timestamps(dates):
     timestamps = []
     for date in dates:
-        time = date
-        time += " "
-        time += trip_start_time
-        time = datetime.datetime.strptime(time, "%d/%m/%Y %H:%M:%S")
+        time = datetime.datetime.strptime(date, "%d/%m/%Y %H:%M:%S")
         timestamp = time.timestamp() * 1000  # in millisec
         timestamps.append(int(timestamp))
     return timestamps
@@ -83,7 +122,7 @@ def get_previous_timestamps(timestamps):
             for v in range(len(times[h])):
                 if int(times[h][v]) > timestamps[pos]:
                     if v != 0:
-                        previous_timestamps.append([h, v-1, int(times[h][v-1])])
+                        previous_timestamps.append([h, v - 1, int(times[h][v - 1])])
                         pos += 1
                         if pos == len(timestamps):
                             break
@@ -108,7 +147,7 @@ def refresh_vehicles(file_ac, time_p, l_id):
     """
     found = False
     vehicles = None
-    if time_p < 0:      # first time issue
+    if time_p < 0:  # first time issue
         time_p = 0
     for r in range(len(file_ac[0][time_p]['Responses'])):
         if file_ac[0][time_p]['Responses'][r] is not None:
@@ -137,34 +176,174 @@ def select_vehicle(pos, direction_id):
     global vehicles
     global fetching_data
     global timestamp
+    global backup
+    global line_id
     end = 0
-    if vehicles is not None:    # None is the case when there is no line Id information found in Json
+    if vehicles is not None:  # None is the case when there is no line Id information found in Json
         for v in vehicles:
-            if v['directionId'] == str(direction_id) and int(v['distanceFromPoint']) == 0:
-                if v['pointId'] == str(stop_sequence[pos+1]):
-                    fetching_data.append([timestamp[2], v])
-                    pos += 1                                # the vehicle should arrive to the next station
+            if v['directionId'] == str(direction_id):
+                if pos == 0 and v['pointId'] == str(stop_sequence[0]) and int(v['distanceFromPoint']) == 0:
+                    fetching_data = [[timestamp[2], v]]  # taking the last position of the start station
                     return pos
-                elif len(stop_sequence) > pos+2 and v['pointId'] == str(stop_sequence[pos+2]):
-                    fetching_data.append([timestamp[2], v])
-                    pos += 2                                # sometimes the vehicle skip 1 station
-                    return pos
-                elif len(stop_sequence) > pos+3 and v['pointId'] == str(stop_sequence[pos+3]):
-                    fetching_data.append([timestamp[2], v])
-                    pos += 3                                # sometimes the vehicle skip 2 stations
-                    return pos
+                if v['pointId'] == str(stop_sequence[pos + 1]):
+                    if int(v['distanceFromPoint']) == 0:
+                        fetching_data.append([timestamp[2], v])
+                        pos += 1  # the vehicle should arrive to the next station
+                        backup = []  # clear backup
+                        return pos
+                    elif is_not_in_backup(v['pointId']):
+                        backup.append([timestamp[2], v])
+                elif len(stop_sequence) > pos + 2 and v['pointId'] == str(stop_sequence[pos + 2]):
+                    if int(v['distanceFromPoint']) == 0:
+                        fetching_data.append([timestamp[2], v])
+                        pos += 2  # sometimes the vehicle skip 1 station
+                        backup = []  # clear backup
+                        return pos
+                    elif is_not_in_backup(v['pointId']):
+                        backup.append([timestamp[2], v])
+                elif len(stop_sequence) > pos + 3 and v['pointId'] == str(stop_sequence[pos + 3]):
+                    if int(v['distanceFromPoint']) == 0:
+                        fetching_data.append([timestamp[2], v])
+                        pos += 3  # sometimes the vehicle skip 2 stations
+                        backup = []  # clear backup
+                        return pos
+                    elif is_not_in_backup(v['pointId']):
+                        backup.append([timestamp[2], v])
+                        for elem in backup:
+                            fetching_data.append(elem)
+                        backup = []
+                        return pos + 3
+                elif len(stop_sequence) > pos + 4 and v['pointId'] == str(stop_sequence[pos + 4]) and len(
+                        backup) >= 2:
+                    if int(v['distanceFromPoint']) == 0:
+                        backup.append([timestamp[2], v])
+                    for elem in backup:
+                        fetching_data.append(elem)
+                    backup = []
+                    if int(v['distanceFromPoint']) != 0:
+                        backup.append([timestamp[2], v])
+                    return pos + 4
             if pos >= len(stop_sequence) - 4:
-                if v['directionId'] == str(direction_id) and numpy.int64(v['pointId']) in stop_sequence[pos:]:
-                    end += 1                                 # sometime the vehicle skip the terminus
+                # print(type(stop_sequence[pos]))
+                if v['directionId'] == str(direction_id) and v['pointId'] in str(stop_sequence[pos:]):  # numpy.int64()
+                    end += 1  # sometime the vehicle skip the terminus                             # sometimes str
         if pos >= len(stop_sequence) - 4 and end == 0:
-            return len(stop_sequence)-1
+            for elem in backup:
+                fetching_data.append(elem)
+            backup = []
+            return len(stop_sequence) - 1
     return pos
+
+
+def is_not_in_backup(point_id):
+    global backup
+    res = True
+    for elem in backup:
+        if elem[1]['pointId'] == point_id:
+            res = False
+            break
+    return res
+
+
+###################################
+# new searching algo
+target_stations = []
+step = 0
+R = 4  # range of the look ahead station
+S = 3  # steps before adding a new station in target
+
+
+def get_station_pos(point_id):
+    position = None
+    for s in range(len(stop_sequence)):
+        if str(point_id) in str(stop_sequence[s]):
+            position = s
+            break
+    return position
+
+
+def refresh_target_stations(pos):
+    global target_stations, step
+    if step == 0:
+        target_stations = []
+        if len(stop_sequence[pos + 1:]) > R:
+            for i in range(R):
+                target_stations.append(stop_sequence[pos + i])
+        else:
+            target_stations = stop_sequence[pos:]
+    else:
+        new_target = get_station_pos(target_stations[-1])
+        if new_target is not None:
+            new_target += 1
+            if step % S == 0 and new_target < len(stop_sequence):
+                # target_stations = target_stations[1:]               # testing a new thing
+                target_stations.append(stop_sequence[new_target])
+    return
+
+
+def nearest_vehicle(vehicle1, vehicle2):
+    n_vehicle = vehicle1
+    pos1 = get_station_pos(vehicle1['pointId'])
+    pos2 = get_station_pos(vehicle2['pointId'])
+    if pos2 < pos1:
+        n_vehicle = vehicle2
+    return n_vehicle
+
+
+def select_vehicles2(pos, direction_id):
+    global vehicles, fetching_data, timestamp, target_stations, step
+    refresh_target_stations(pos)
+    selected = None
+    length = len(fetching_data)
+    end = 0
+    if vehicles is not None:  # None is the case when there is no line Id information found in Json
+        for v in vehicles:
+            if v['directionId'] == str(direction_id):
+                if v['pointId'] in str(target_stations):
+                    if selected is None:
+                        selected = v
+                    else:
+                        selected = nearest_vehicle(selected, v)
+                # End detection
+                if pos >= len(stop_sequence) - 4 and v['pointId'] in str(stop_sequence[pos:]):  # numpy.int64()
+                    end += 1  # sometime the vehicle skip the terminus
+
+        if selected is not None:
+            if len(fetching_data) == 0:
+                fetching_data.append([timestamp[2], selected])
+            elif len(fetching_data) == 1:
+                if selected['pointId'] == fetching_data[0][1]['pointId']:
+                    if selected['distanceFromPoint'] == 0:
+                        fetching_data = [[timestamp[2], selected]]
+                    else:
+                        step = 0
+                        return 1
+                elif get_station_pos(selected['pointId']) > get_station_pos(fetching_data[0][1]['pointId']):
+                    fetching_data.append([timestamp[2], selected])
+                    pos += 1
+            else:
+                if selected['pointId'] != fetching_data[-1][1]['pointId']:
+                    fetching_data.append([timestamp[2], selected])
+    if length == len(fetching_data):    # no vehicle found
+        step += 1
+    else:                   # vehicle added
+        step = 0
+    if pos >= len(stop_sequence) - 4 and end == 0:      # End of fetching data
+        step = 0
+        return len(stop_sequence) - 1
+    if selected is not None and step == 0:
+        return get_station_pos(selected['pointId'])
+    else:
+        return pos
+
+
+###################################
 
 
 def get_offline_timestamps(offlinetimes, date):
     offline_timestamps = []
     for t in offlinetimes:
-        offline_timestamp = date + " " + t
+        offline_timestamp = date.split()[0] + " " + clean_time(t)
         offline_timestamp = datetime.datetime.strptime(offline_timestamp, "%d/%m/%Y %H:%M:%S")
         offline_timestamp = offline_timestamp.timestamp() * 1000  # in millisec
         offline_timestamps.append(int(offline_timestamp))
@@ -176,53 +355,61 @@ def clean_data(dirty_data):
     global stop_sequence
     stop_position = 0
     for data_point in dirty_data:
-        if data_point[1]['pointId'] == str(stop_sequence[stop_position]):
+        if str(data_point[1]['pointId']) in str(stop_sequence[stop_position]):
             cleaned_data.append([data_point[0], data_point[1]['pointId']])
             stop_position += 1
         else:
             gap = get_gap(stop_position, data_point[1]['pointId'])
             if stop_position != 0:
                 fill_data = get_data_to_fill(cleaned_data[-1][0], data_point[0], gap)
-                for i in range(gap):
-                    cleaned_data.append(fill_data[i])
-                cleaned_data.append([data_point[0], data_point[1]['pointId']])
-                stop_position += gap+1
-            else:                               # first station missing case
-                if gap == 1:
-                    cleaned_data.append([int(offline_timestamps[0]), 'estimated'])  # Assumption: starts on time
-                else:
-                    cleaned_data.append([int(offline_timestamps[0]), 'estimated'])  # Assumption: starts on time
-                    cleaned_data.append([int(offline_timestamps[1]), 'estimated'])  # Assumption: no delay on station2
+                for g in range(gap):
+                    cleaned_data.append(fill_data[g])
                 cleaned_data.append([data_point[0], data_point[1]['pointId']])
                 stop_position += gap + 1
-    if len(cleaned_data) == len(stop_sequence) - 1:         # last station missing case
-        delay_to_terminus = int(offline_timestamps[-1]) - int(offline_timestamps[-2])
-        time_to_terminus = int(cleaned_data[-1][0]) + delay_to_terminus
-        cleaned_data.append([time_to_terminus, 'estimated'])
-    elif len(cleaned_data) == len(stop_sequence) - 2:         # 2 last stations missing case
-        # station before terminus
-        delay_to_station_before_terminus = int(offline_timestamps[-2]) - int(offline_timestamps[-3])  # no delay
-        time_to_station_before_terminus = int(cleaned_data[-1][0]) + delay_to_station_before_terminus
-        cleaned_data.append([time_to_station_before_terminus, 'estimated'])
-        # for terminus
-        delay_to_terminus = int(offline_timestamps[-1]) - int(offline_timestamps[-2])    # no delay
-        time_to_terminus = int(cleaned_data[-1][0]) + delay_to_terminus
-        cleaned_data.append([time_to_terminus, 'estimated'])
+            else:  # first stations missing case
+                delta_t = int(offline_timestamps[gap]) - int(offline_timestamps[0])
+                delta_t = delta_t / gap
+                for i in range(gap):
+                    cleaned_data.append(
+                        [int(int(dirty_data[0][0]) - (gap - i) * delta_t), 'estimated'])  # subtracting duration
+                cleaned_data.append([data_point[0], data_point[1]['pointId']])
+                stop_position += gap + 1
 
+    if len(cleaned_data) != len(stop_sequence):
+        # some last stops can still be missing
+        gap = len(stop_sequence) - len(cleaned_data)        # number of missing last stops
+        for i in range(gap):
+            offline_delay = int(offline_timestamps[-(gap-i)]) - int(offline_timestamps[-(gap-i+1)])
+            estimated_delay = int(cleaned_data[-1][0]) + offline_delay
+            cleaned_data.append([estimated_delay, 'estimated'])
     return cleaned_data
 
 
 def get_gap(pos, pointId):
+    """
+    It gives the number of missing values in the dirty data according to the offline stop_sequence
+    :param pos: position in the dirty data where the point_id is not the correct one
+    :param pointId: the point_id we should have in this pos
+    :return: number of missing point_id tho have a correct stop_sequence
+    """
     global stop_sequence
-    length = len(stop_sequence)
-    if pos + 1 < length and str(stop_sequence[pos + 1]) == pointId:
-        gap = 1
-    else:
-        gap = 2
+    gap = 0
+    for stop in stop_sequence[pos:]:
+        if pointId not in str(stop):
+            gap += 1
+        else:
+            break
     return gap
 
 
 def get_data_to_fill(t1, t2, gap):
+    """
+    Calculates the difference between two timestamps and generate points to fill the missing values
+    :param t1: starting time
+    :param t2: end time
+    :param gap: number of missing values
+    :return:
+    """
     fill = []
     estimated_delay = (int(t2) - int(t1)) / (gap + 1)
     start = float(t1)
@@ -235,14 +422,103 @@ def get_data_to_fill(t1, t2, gap):
 def get_trip_delays(data_collected):
     trip_delays = []
     global offline_timestamps
-    for t in range(len(offline_timestamps)):
-        delay = int(data_collected[t][0]) - int(offline_timestamps[t])
-        trip_delays.append(delay)
+    if len(offline_timestamps) == len(data_collected):
+        for t in range(len(offline_timestamps)):
+            delay = int(data_collected[t][0]) - int(offline_timestamps[t])
+            trip_delays.append(delay)
+    else:
+        print("Error occurred can't calculate the delays not the same length!")
+        trip_delays = "ERROR"
+
     return trip_delays
 
 
 def save_line(trip_id, date, line_id, direction_id, delays):
     return str(trip_id) + ',' + str(date) + ',' + str(line_id) + ',' + str(direction_id) + ',' + str(delays) + '\n'
+
+
+def analyse_data(trip_id, stop_sequence, offline_times):
+    print("trip_id = ", trip_id, "\nstop_sequence = ", stop_sequence)
+    # Find the service id from the trip id
+    service_id = get_service_id(trip_id)  # we don't really need to search for the service id it is in the trip Id
+
+    # Find the dates of the trips
+    dates = get_trip_dates(service_id)
+    # Find the line id
+    direction_id = stop_sequence[-1]
+    global line_id
+    line_id = get_line_id(stop_sequence[0], direction_id)
+    print("line_Id = ", line_id)
+
+    # if we have real time data dor those dates search can start
+    if len(dates) != 0 and line_id is not None:
+        print(dates)
+
+        # Transform it into timestamp then get the previous timestamps
+        # trip_start_time = offline_times[0]
+        timestamps = dates_to_timestamps(dates)
+        timestamps = get_previous_timestamps(timestamps)
+        print(timestamps)
+
+        # searching for realtime data
+        real_time_data = []
+        global vehicles
+        global timestamp
+        global fetching_data
+        global backup
+        for ts in timestamps:
+            searching = True
+            timestamp = ts
+            max_timestamp = datetime.datetime.fromtimestamp(timestamp[2]/1000)
+            max_timestamp += datetime.timedelta(days=1)
+            max_timestamp = int(datetime.datetime.timestamp(max_timestamp) * 1000)     # trip is not more than one day
+            pos = 0
+            fetching_data = []
+            backup = []
+            while searching:
+                vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1],
+                                            int(line_id))  # note it is timestamp[1]!
+                pos = select_vehicles2(pos, direction_id)
+                # print(target_stations)
+                if pos == len(stop_sequence) - 1 or int(timestamp[2]) > max_timestamp:
+                    searching = False
+                else:
+                    try:
+                        timestamp = get_next_timestamp(timestamp)
+                    except IndexError:
+                        break
+            real_time_data.append(fetching_data)
+        # print(real_time_data)
+
+        ##########################################################
+        # Delay calculation
+
+        global offline_timestamps
+        global save
+        for r in range(len(real_time_data)):
+
+            # Transforming offline times into timestamp using the right date
+            offline_timestamps = get_offline_timestamps(offline_times, dates[r])
+            # print(offline_timestamps)
+            data_collected = real_time_data[r]
+            # print(data_collected)
+
+            # Cleaning the collected data (if needed)
+            if len(data_collected) != len(stop_sequence):
+                print(data_collected)
+                data_collected = clean_data(data_collected)
+            print("clean = ", data_collected)
+
+            # Delay calculation
+            delays = get_trip_delays(data_collected)
+            # print("Delays = ", delays)
+
+            # Saving results
+            save += save_line(trip_id, dates[r], line_id, direction_id, delays)
+        # print(save)
+    else:
+        print("No real time data covering this trip : ", trip_id, dates)
+        print("OR No real such route : ", error)
 
 
 if __name__ == "__main__":
@@ -259,7 +535,7 @@ if __name__ == "__main__":
     test = 0
     for file in files:
         test += 1
-        file_name = 'Data/'+file
+        file_name = 'Data/' + file
         with open(file_name, 'r') as f:
             objects = ijson.items(f, "data")
             data = list(objects)
@@ -270,7 +546,7 @@ if __name__ == "__main__":
             time = data[0][i]['time']
             stamps.append(time)
         times.append(stamps)
-        if test == 1:
+        if test == -1:
             break
     print("Loaded")
     ##########################################################
@@ -296,77 +572,36 @@ if __name__ == "__main__":
 
     ##########################################################
     # read stop_times
-    df = pd.read_csv('example.txt')
+    df = pd.read_csv('test2.txt')
     df.drop(labels=['departure_time', 'pickup_type', 'drop_off_type'], axis=1, inplace=True)
     # print(df)
-    trip_id = df['trip_id'][0]
+
     stop_sequence = []
     offline_times = []
+    trip_id = None
+    new_file = open("results.txt", "a")
+    Number_trip_test = 0  # testing
     for i in df.index:
-        stop_sequence.append(df['stop_id'][i])
-        offline_times.append(df['arrival_time'][i])
-    print("trip_id = ", trip_id, "\nstop_sequence = ", stop_sequence)
-
-    # Find the service id from the trip id
-    service_id = get_service_id(trip_id)  # we don't really need to search for the service id it is in the trip Id
-
-    # Find the dates of the trips
-    dates = get_trip_dates(service_id)
-
-    # if we have real time data dor those dates search can start
-    if len(dates) != 0:
-        print(dates)
-
-        # Find the line id
-        direction_id = stop_sequence[-1]
-        line_id = get_line_id(stop_sequence[0], direction_id)
-        print("line_Id = ", line_id)
-
-        # Transform it into timestamp then get the previous timestamps
-        trip_start_time = offline_times[0]
-        timestamps = dates_to_timestamps(trip_start_time, dates)
-        timestamps = get_previous_timestamps(timestamps)
-        print(timestamps)
-
-        # searching for realtime data
-        real_time_data = []
-        for ts in timestamps:
-            searching = True
-            timestamp = ts
-            pos = -1
-            fetching_data = []
-            while searching:
-                vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1], int(line_id))   # note it is timestamp[1]!
-                pos = select_vehicle(pos, direction_id)
-                if pos == len(stop_sequence)-1:
-                    searching = False
-                else:
-                    timestamp = get_next_timestamp(timestamp)
-            real_time_data.append(fetching_data)
-        # print(real_time_data)
-
-        ##########################################################
-        # Delay calculation
-        save = ""
-        for i in range(len(real_time_data)):
-
-            # Transforming offline times into timestamp using the right date
-            offline_timestamps = get_offline_timestamps(offline_times, dates[i])
-            # print(offline_timestamps)
-            data_collected = real_time_data[i]
-            # print(data_collected)
-
-            # Cleaning the collected data (if needed)
-            if len(data_collected) != len(stop_sequence):
-                data_collected = clean_data(data_collected)
-            print("clean = ", data_collected)
-
-            # Delay calculation
-            delays = get_trip_delays(data_collected)
-            # print("Delays = ", delays)
-
-            # Saving results
-            save += save_line(trip_id, dates[i], line_id, direction_id, delays)
-        print(save)
-    else:
-        print("No real time data covering this trip")
+        if trip_id is None:
+            trip_id = df['trip_id'][i]
+            stop_sequence.append(df['stop_id'][i])
+            offline_times.append(df['arrival_time'][i])
+        elif df['trip_id'][i] == trip_id:
+            stop_sequence.append(df['stop_id'][i])
+            offline_times.append(df['arrival_time'][i])
+        else:
+            Number_trip_test += 1
+            if Number_trip_test == 200:
+                print('writing in file')
+                new_file.write(save)
+                save = ""
+                Number_trip_test = 0
+            analyse_data(trip_id, stop_sequence, offline_times)
+            trip_id = df['trip_id'][i]
+            stop_sequence = [df['stop_id'][i]]
+            offline_times = [df['arrival_time'][i]]
+    analyse_data(trip_id, stop_sequence, offline_times)
+    new_file.write(save)
+    new_file.close()
+    # print(save)
+    print("End of computation...")
