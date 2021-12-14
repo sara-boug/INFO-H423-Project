@@ -465,7 +465,8 @@ def analyse_data(trip_id, stop_sequence, offline_times):
         global vehicles
         global timestamp
         global fetching_data
-        global backup
+        global target_stations
+        global step
         for ts in timestamps:
             searching = True
             timestamp = ts
@@ -474,7 +475,8 @@ def analyse_data(trip_id, stop_sequence, offline_times):
             max_timestamp = int(datetime.datetime.timestamp(max_timestamp) * 1000)     # trip is not more than one day
             pos = 0
             fetching_data = []
-            backup = []
+            target_stations = []
+            step = 0
             while searching:
                 vehicles = refresh_vehicles(file_access[timestamp[0]], timestamp[1],
                                             int(line_id))  # note it is timestamp[1]!
