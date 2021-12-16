@@ -26,13 +26,18 @@ def get_line_id(start_pos, stop_pos):
     names = [route_long_name, name_inverse]
     line_id = lineId_df[lineId_df['route_long_name'].isin(names)]
     line_id.reset_index(inplace=True)
-    if line_id.size != 0:
-        # if line_id['route_short_name'][0] == '69':
-         #   return None  # avoiding line 69
-        return line_id['route_short_name'][0]
     global error
-    error = names
-    return None
+    if line_id.size != 0:
+        id = line_id['route_short_name'][0]
+        try:
+            int(id)     # line_id should no be like N06
+        except ValueError:
+            error = "Line_id " + id + " can not be convert to an int ! "
+            id = None
+    else:
+        error = names
+        id = None
+    return id
 
 
 def get_service_id(trip_id):
@@ -298,7 +303,7 @@ def select_vehicles2(pos, direction_id):
     end = 0
     if vehicles is not None:  # None is the case when there is no line Id information found in Json
         for v in vehicles:
-            if v['directionId'] == str(direction_id):
+            if v['directionId'] in str(direction_id):
                 if v['pointId'] in str(target_stations):
                     if selected is None:
                         selected = v
@@ -322,7 +327,7 @@ def select_vehicles2(pos, direction_id):
                     fetching_data.append([timestamp[2], selected])
                     pos += 1
             else:
-                if selected['pointId'] != fetching_data[-1][1]['pointId']:
+                if selected['pointId'] not in fetching_data[-1][1]['pointId']:
                     fetching_data.append([timestamp[2], selected])
     if length == len(fetching_data):    # no vehicle found
         step += 1
@@ -506,7 +511,7 @@ def analyse_data(trip_id, stop_sequence, offline_times):
             # print(data_collected)
 
             # Cleaning the collected data (if needed)
-            if len(data_collected) != len(stop_sequence):
+            if len(data_collected) != len(stop_sequence) and len(data_collected) != 0:
                 print(data_collected)
                 data_collected = clean_data(data_collected)
             print("clean = ", data_collected)
@@ -574,14 +579,14 @@ if __name__ == "__main__":
 
     ##########################################################
     # read stop_times
-    df = pd.read_csv('test2.txt')
+    df = pd.read_csv('herman_debr.txt')
     df.drop(labels=['departure_time', 'pickup_type', 'drop_off_type'], axis=1, inplace=True)
     # print(df)
 
     stop_sequence = []
     offline_times = []
     trip_id = None
-    new_file = open("results.txt", "a")
+    #new_file = open("results.txt", "a")
     Number_trip_test = 0  # testing
     for i in df.index:
         if trip_id is None:
@@ -595,7 +600,7 @@ if __name__ == "__main__":
             Number_trip_test += 1
             if Number_trip_test == 200:
                 print('writing in file')
-                new_file.write(save)
+     #           new_file.write(save)
                 save = ""
                 Number_trip_test = 0
             analyse_data(trip_id, stop_sequence, offline_times)
@@ -603,7 +608,7 @@ if __name__ == "__main__":
             stop_sequence = [df['stop_id'][i]]
             offline_times = [df['arrival_time'][i]]
     analyse_data(trip_id, stop_sequence, offline_times)
-    new_file.write(save)
-    new_file.close()
+    #new_file.write(save)
+    #new_file.close()
     # print(save)
     print("End of computation...")
