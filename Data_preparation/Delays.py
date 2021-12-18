@@ -2,6 +2,7 @@ import ijson
 import numpy
 import pandas as pd
 import datetime
+from geopy.distance import geodesic
 
 vehicles = []
 fetching_data = []
@@ -10,6 +11,7 @@ backup = []
 line_id = None
 offline_timestamps = []
 save = "trip_id, date, line_id, direction_id, delays\n"
+save_speeds = "trip_id, date, line_id, direction_id, speeds\n"
 error = None
 
 
@@ -327,7 +329,8 @@ def select_vehicles2(pos, direction_id):
                     fetching_data.append([timestamp[2], selected])
                     pos += 1
             else:
-                if selected['pointId'] not in fetching_data[-1][1]['pointId']:
+                if selected['pointId'] not in fetching_data[-1][1]['pointId'] \
+                        and get_station_pos(selected['pointId']) > get_station_pos(fetching_data[-1][1]['pointId']):
                     fetching_data.append([timestamp[2], selected])
     if length == len(fetching_data):    # no vehicle found
         step += 1
@@ -438,6 +441,29 @@ def get_trip_delays(data_collected):
     return trip_delays
 
 
+def get_trip_speeds(stop_sequence, data_collected):
+    coordinates = []
+    speeds = None
+    if len(stop_sequence) == len(data_collected):
+        for station in stop_sequence:
+            s = station_df.loc[station_df['stop_id'] == str(station)]
+            s.reset_index(inplace=True)
+            lat = float(s['stop_lat'][0])
+            lon = float(s['stop_lon'][0])
+            coordinates.append((lat, lon))
+        distances = [0]
+        for p in range(1, len(stop_sequence)):
+            distance = geodesic(coordinates[p-1], coordinates[p]).kilometers
+            distances.append(distance)
+        time_intervals = [0]
+        for t in range(1, len(data_collected)):
+            time_intervals.append((int(data_collected[t][0]) - int(data_collected[t-1][0]))/3600000)     # in hour
+        speeds = [0]
+        for i in range(1, len(time_intervals)):
+            speeds.append(distances[i]/time_intervals[i])       # Km/hour
+    return speeds
+
+
 def save_line(trip_id, date, line_id, direction_id, delays):
     return str(trip_id) + ',' + str(date) + ',' + str(line_id) + ',' + str(direction_id) + ',' + str(delays) + '\n'
 
@@ -501,7 +527,7 @@ def analyse_data(trip_id, stop_sequence, offline_times):
         # Delay calculation
 
         global offline_timestamps
-        global save
+        global save, save_speeds
         for r in range(len(real_time_data)):
 
             # Transforming offline times into timestamp using the right date
@@ -520,8 +546,13 @@ def analyse_data(trip_id, stop_sequence, offline_times):
             delays = get_trip_delays(data_collected)
             # print("Delays = ", delays)
 
+            # Speed calculation
+            speeds = get_trip_speeds(stop_sequence, data_collected)
+
             # Saving results
             save += save_line(trip_id, dates[r], line_id, direction_id, delays)
+            save_speeds += save_line(trip_id, dates[r], line_id, direction_id, speeds)
+            #print(save_speeds)
         # print(save)
     else:
         print("No real time data covering this trip : ", trip_id, dates)
@@ -562,9 +593,9 @@ if __name__ == "__main__":
     lineId_df.drop(labels=['route_id', 'route_desc', 'route_type', 'route_url', 'route_color', 'route_text_color'],
                    axis=1, inplace=True)
 
-    # dataFrame for searching station name
+    # dataFrame for searching station name and coordinates
     station_df = pd.read_csv('Data/gtfs3Sept/stops.txt')
-    station_df.drop(labels=['stop_code', 'stop_desc', 'stop_lat', 'stop_lon', 'zone_id', 'stop_url', 'location_type',
+    station_df.drop(labels=['stop_code', 'stop_desc', 'zone_id', 'stop_url', 'location_type',
                             'parent_station'],
                     axis=1, inplace=True)
 
@@ -579,15 +610,17 @@ if __name__ == "__main__":
 
     ##########################################################
     # read stop_times
-    df = pd.read_csv('herman_debr.txt')
+    df = pd.read_csv('test2.txt')
     df.drop(labels=['departure_time', 'pickup_type', 'drop_off_type'], axis=1, inplace=True)
     # print(df)
 
     stop_sequence = []
     offline_times = []
     trip_id = None
-    #new_file = open("results.txt", "a")
+    #new_file = open("delays.txt", "a")
+    #new_file_2 = open("speeds.txt", "a")
     Number_trip_test = 0  # testing
+
     for i in df.index:
         if trip_id is None:
             trip_id = df['trip_id'][i]
@@ -600,8 +633,10 @@ if __name__ == "__main__":
             Number_trip_test += 1
             if Number_trip_test == 200:
                 print('writing in file')
-     #           new_file.write(save)
+                #new_file.write(save)
+                #new_file_2.write(save_speeds)
                 save = ""
+                save_speeds = ""
                 Number_trip_test = 0
             analyse_data(trip_id, stop_sequence, offline_times)
             trip_id = df['trip_id'][i]
@@ -609,6 +644,8 @@ if __name__ == "__main__":
             offline_times = [df['arrival_time'][i]]
     analyse_data(trip_id, stop_sequence, offline_times)
     #new_file.write(save)
+    #new_file_2.write(save_speeds)
     #new_file.close()
+    #new_file_2.close()
     # print(save)
     print("End of computation...")
