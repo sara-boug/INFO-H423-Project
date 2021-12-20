@@ -1,5 +1,4 @@
 import csv
-import logging
 import os
 import time
 
@@ -81,7 +80,7 @@ class DataLoader:
         self.simplify_data_shape()
         file = open(self.online_offline_data_file, 'w')
         csv_writer = csv.writer(file)
-        csv_writer.writerow(['actual_time', 'delay', 'speed', 'line_id', 'point_id'])
+        csv_writer.writerow(['actual_time', 'delay', 'speed', 'line_id', 'point_id', 'longitude', 'latitude'])
         dataframe = pd.read_csv(self.simplified_vehicle_position_file)
         # grouping per line_id
         data = dataframe.groupby(['line_id'])
@@ -131,7 +130,7 @@ class DataLoader:
                 }
             counter += 1
 
-    def load_stops(self):
+    def load_stops(self, stops_file=None):
         """
         Transforms the stops coordinates into a suitable format, to increase the access efficiency
 
@@ -148,7 +147,9 @@ class DataLoader:
         Hence , to find the exacate longitude and latitude of a specific point add, the first two digits are used
         to later on access the full length
         """
-        with open(self.stop_coords_file_name) as file:
+        if stops_file is None: stops_file = self.stop_coords_file_name
+
+        with open(stops_file) as file:
             csv_reader = csv.DictReader(file, delimiter=',')
             for row in csv_reader:
                 stop = str(row["stop_id"])
@@ -196,10 +197,11 @@ class DataLoader:
                         # the interest is centred when a Specific vehicle reaches a different point,
                         # meaning two element with different point_ids
                         if item1['pointId'] != item2['pointId']:
-                            distance = self.__calculate_distance(point1=str(item1['pointId']),
-                                                                 point2=str(item2['pointId']),
-                                                                 distance_point1=real_distance,
-                                                                 distance_point2=item2['distanceFromPoint'])
+                            distance, longitude, latitude = self.__calculate_distance(point1=str(item1['pointId']),
+                                                                                      point2=str(item2['pointId']),
+                                                                                      distance_point1=real_distance,
+                                                                                      distance_point2=item2[
+                                                                                          'distanceFromPoint'])
                             speed, time1, time2 = self.__calculate_speed(distance, real_departure, item2['time'], True)
                             if speed == 0: continue  # exclude the speed when its 0
                             expected_arrival_time, delay = self.__calculate__offline_time(item1['time'],
@@ -208,7 +210,7 @@ class DataLoader:
 
                             # write to the CSV file
                             csv_writer.writerow(
-                                [time2, delay, speed, item2['line_id'], item2['pointId']])
+                                [time2, delay, speed, item2['line_id'], item2['pointId'], longitude, latitude])
 
                             # this condition handles the fact that a vehicle reached its terminal
                             # in this case a new point is instantiated, meaning updating the departure
@@ -244,7 +246,7 @@ class DataLoader:
             # extract the right coordinates
             arrival_coord = (info_point_id['stop_lat'], info_point_id['stop_lon'])
             distance = geodesic(departure_coord, arrival_coord).meters - distance_point1 + distance_point2
-            return distance
+            return distance, info_point_id['stop_lon'], info_point_id['stop_lat']
         except KeyError:
             return
 

@@ -24,7 +24,7 @@ class OfflineSpeed:
         self.compute_distance_func = compute_distance_func
         self.compute_speed_func = compute_speed_func
         # this dictionary will contain  point_id average offline speed
-        self.container_file = os.path.join(os.getcwd(), "data_preparation", "generated_files", "offline_speed.txt")
+        self.container_file = os.path.join(os.getcwd(), "data_preparation", "generated_files", 'sample' , "offline_speed.txt")
 
     def generate_file(self):
         """
