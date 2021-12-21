@@ -5,6 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import statistics
+from dateutil import parser
+import csv
+import glob
 
 """
 .Data preparation steps
@@ -23,18 +26,28 @@ def map_time(dataset):
 def map_lines(responses):
     return responses['lines']
 
-with open("./splited_json/splited_json/vehiclePosition01.json", "r") as read_file:
-    data = json.load(read_file)
 
-testlist = data['data']
+
+
+def duration_between_two_calls(t1, t2):
+  time2 = parser.parse(t2)
+  time1 = parser.parse(t1)
+  return (time2 - time1).total_seconds()
+
 
 def compute_speed(d1, d2, t1, t2):
+    """
     t1 = datetime.strptime(time.strftime('%H:%M:%S',time.gmtime(float(t1)/1000.)),
      '%H:%M:%S')
     t2 = datetime.strptime(time.strftime('%H:%M:%S',time.gmtime(float(t2)/1000.)),
      '%H:%M:%S')
-    duration = (t2 - t1).total_seconds()
+    #duration = (t2 - t1).total_seconds()
+    """
+ 
+    duration = duration_between_two_calls(time.strftime('%H:%M:%S',time.gmtime(float(t1)/1000.)),
+     time.strftime('%H:%M:%S',time.gmtime(float(t2)/1000.)))
     distance = d2 - d1
+
     return round((distance / duration), 2)  
 
 def map_lineIDs(lines):
@@ -43,6 +56,32 @@ def map_lines(responses):
     li = [item  for res in responses for item in res['lines']]
     return list(map(map_lineIDs, li))
 
+
+def load_json_file(json_file): 
+  with open(json_file, "r") as read_file:
+    data = json.load(read_file)
+  return data
+
+  return list_track
+
+"""
+files = [file for file in glob.glob("./data/*.json")]
+for file_name in files:
+    with io.open(file_name, 'rb') as image_file:
+        content = image_file.read()
+"""
+
+data = load_json_file("./splited_json/splited_json/vehiclePosition01.json")
+testlist = data['data'][0:]
+f = open("./demofile2.txt", "a")
+f.write(str(testlist))
+f.close()
+
+print("this is 2 calls of data \n",data['data'][0]['Responses'] )
+lineIDs_first_lines = data['data'][1]['Responses'][0]['lines']
+print("this is different lineIDs in first lines response \n\n", lineIDs_first_lines,"\n\n")
+nb_vehicle_positions = len(lineIDs_first_lines[0]['vehiclePositions'])
+print("this is how many vehicle we hve in line 1, first call`\n",nb_vehicle_positions)
 speed_list = map_lines(testlist[0]['Responses']) # Prepare a list of lineID with it list of speed over timestamps calls    
 #li_time = list(map(map_time, testlist))# Map the timestamp list
 for idx, call in enumerate(testlist): # loop in all timestamp responses
@@ -96,6 +135,7 @@ f.write(str(speed_list))
 f.close()
 """
 # Ploting
+"""
 xaxis  = speed_list[2]['TimelineId'][0::120]
 yaxis =  speed_list[2]['SpeedLineId'][0::120]
 plt.title("LineID ="+speed_list[2]['lineId'])
@@ -103,3 +143,4 @@ plt.plot(xaxis, yaxis)
 plt.xlabel('time (s)')
 plt.ylabel('Speed (m/s)')
 plt.show()
+"""
